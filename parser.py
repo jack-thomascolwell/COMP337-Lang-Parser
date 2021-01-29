@@ -95,22 +95,22 @@ class Parser:
         return Parse(add_expression.value, 2 + add_expression.index)
 
     def _parse_add_expression(self, string, index):
-        operand = self.parse(string, 'operand', index)
-        if (operand == Parser.FAIL):
+        mul_div_expression = self.parse(string, 'mul_div_expression', index)
+        if (mul_div_expression == Parser.FAIL):
             return Parser.FAIL
-        add_tail = self._zero_or_more(string, index + operand.index, 'add_tail')
+        add_tail = self._zero_or_more(string, index + mul_div_expression.index, 'add_tail')
         if (add_tail == Parser.FAIL):
             return Parser.FAIL
-        return Parse(operand.value + add_tail.value, operand.index + add_tail.index)
+        return Parse(mul_div_expression.value + add_tail.value, mul_div_expression.index + add_tail.index)
 
     def _parse_add_tail(self, string, index):
         operator = self._choose(string, index, 'add_operator', 'sub_operator')
         if (operator == Parser.FAIL):
             return Parser.FAIL
-        operand = self.parse(string, 'operand', index + operator.index)
-        if (operand == Parser.FAIL):
+        mul_div_expression = self.parse(string, 'mul_div_expression', index + operator.index)
+        if (mul_div_expression == Parser.FAIL):
             return Parser.FAIL
-        return Parse(operator.value * operand.value, operand.index + operator.index)
+        return Parse(operator.value * mul_div_expression.value, mul_div_expression.index + operator.index)
 
     def _parse_operand(self, string, index):
         return self._choose(string, index, 'parenthesized_expression', 'integer')
@@ -220,6 +220,45 @@ def test():
     test_parse(parser, '4-(1+2+3)-4', 'add_expression', Parse(-6,11))
     test_parse(parser, '3+4-(5-6)+9', 'add_expression', Parse(17,11))
 
+    # Multiplication Tests
+    test_parse(parser, 'b', 'mul_div_expression', Parser.FAIL);
+    test_parse(parser, ' ', 'mul_div_expression', Parser.FAIL);
+    test_parse(parser, '3*', 'mul_div_expression', Parse(3,1));
+    test_parse(parser, '3**', 'mul_div_expression', Parse(3,1));
+    test_parse(parser, '3*4', 'mul_div_expression', Parse(12,3))
+    test_parse(parser, '2020*2021', 'mul_div_expression', Parse(2021*2020,9))
+    test_parse(parser, '0*0', 'mul_div_expression', Parse(0,3))
+    test_parse(parser, '1*1*', 'mul_div_expression', Parse(1,3))
+    test_parse(parser, '1*1*-', 'mul_div_expression', Parse(1,3))
+    test_parse(parser, '0*0*0*0+0', 'mul_div_expression', Parse(0,9))
+    test_parse(parser, '0*42', 'mul_div_expression', Parse(0,4))
+    test_parse(parser, '42*0', 'mul_div_expression', Parse(0,4))
+    test_parse(parser, '123*234*345', 'mul_div_expression', Parse(123*234*345,11))
+    test_parse(parser, '0)', 'mul_div_expression', Parse(0,1))
+
+    # Division Tests
+    test_parse(parser, 'b', 'mul_div_expression', Parser.FAIL);
+    test_parse(parser, ' ', 'mul_div_expression', Parser.FAIL);
+    test_parse(parser, '3/', 'mul_div_expression', Parse(3,1));
+    test_parse(parser, '3//', 'mul_div_expression', Parse(3,1));
+    test_parse(parser, '3/4', 'mul_div_expression', Parse(0.75,3))
+    test_parse(parser, '2020/2021', 'mul_div_expression', Parse(2021/2020,9))
+    test_parse(parser, '1/1/', 'mul_div_expression', Parse(1,3))
+    test_parse(parser, '1/1/-', 'mul_div_expression', Parse(1,3))
+    test_parse(parser, '0/1/2/4*0', 'mul_div_expression', Parse(0,9))
+    test_parse(parser, '0/42', 'mul_div_expression', Parse(0,4))
+    test_parse(parser, '42/2', 'mul_div_expression', Parse(21,4))
+    test_parse(parser, '123/234/345', 'mul_div_expression', Parse(123/234/345,11))
+    test_parse(parser, '0)', 'mul_div_expression', Parse(0,1))
+
+    # Multiplication and Division Tests
+    test_parse(parser, '123*234/345', 'mul_div_expression', Parse(123*234/345,11))
+    test_parse(parser, '123*234*345/2', 'mul_div_expression', Parse(123*234*345/2,13))
+    test_parse(parser, '123/234*345/2', 'mul_div_expression', Parse(123/234*345/2,13))
+
+    # Order of Operations Tests
+    test_parse(parser, '123*(234+345/2)', 'mul_div_expression', Parse(123*234/345,15))
+    test_parse(parser, '123+2/3-(234*345/2)', 'mul_div_expression', Parse(123+2/3-(234*345/2),19))
 
 def main():
     test()
