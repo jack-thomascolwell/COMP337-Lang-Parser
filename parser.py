@@ -34,7 +34,7 @@ class Parser:
         return result
 
     def _parse_constant(self, string, index, constant):
-        if (index > str.length()):
+        if (index > string.length()):
             return Parser.FAIL
         return
 
@@ -103,13 +103,24 @@ class Parser:
             return Parser.FAIL
         return Parse(operand.value + add_tail.value, operand.index + add_tail.index)
 
+    def _parse_mul_div_expression(self, string, index):
+        operand = self.parse(string, 'operand', index)
+        if (operand == Parser.FAIL):
+            return Parser.FAIL
+        mul_tail = self._one_or_more(string, index + operand.index, 'add_tail')
+        if (mul_tail == Parser.FAIL):
+            return Parse(1, 0)
+        return Parse(int(operand.value * mul_tail.value), operand.index + mul_tail.index) # for floor division ??
+
     def _parse_add_tail(self, string, index):
-        operator = self._choose(string, index, 'add_operator', 'sub_operator')
+        operator = self._choose(string, index, 'add_operator', 'sub_operator', 'mul_operator', 'div_operator')
         if (operator == Parser.FAIL):
             return Parser.FAIL
         operand = self.parse(string, 'operand', index + operator.index)
         if (operand == Parser.FAIL):
             return Parser.FAIL
+        if string[index] == '*' or string[index] == '/':
+            return Parse(operator.value ** operand.value, operand.index + operator.index)
         return Parse(operator.value * operand.value, operand.index + operator.index)
 
     def _parse_operand(self, string, index):
@@ -143,6 +154,26 @@ class Parser:
         trailing_space = self._zero_or_more(string, index + leading_space.index + 1, 'whitespace')
         return Parse(1,leading_space.index + trailing_space.index + 1)
 
+    def _parse_mul_operator(self, string, index):
+        leading_space = self._zero_or_more(string, index, 'whitespace')
+
+        operator = self._character(string, index + leading_space.index, '*')
+        if (operator == Parser.FAIL):
+            return Parser.FAIL
+
+        trailing_space = self._zero_or_more(string, index + leading_space.index + 1, 'whitespace')
+        return Parse(1,leading_space.index + trailing_space.index + 1)
+
+    def _parse_div_operator(self, string, index):
+        leading_space = self._zero_or_more(string, index, 'whitespace')
+
+        operator = self._character(string, index + leading_space.index, '/')
+        if (operator == Parser.FAIL):
+            return Parser.FAIL
+
+        trailing_space = self._zero_or_more(string, index + leading_space.index + 1, 'whitespace')
+        return Parse(-1,leading_space.index + trailing_space.index + 1)
+
     def _parse_whitespace(self, string, index):
         space = self._character(string, index, ' ')
         if (space == Parser.FAIL):
@@ -164,14 +195,14 @@ def test():
     test_parse(parser, '0', 'integer', Parse(0,1))
     test_parse(parser, '100', 'integer', Parse(100,3))
     test_parse(parser, '2021', 'integer', Parse(2021,4))
-    test_parse(parser, 'b', 'integer', Parser.FAIL);
-    test_parse(parser, '', 'integer', Parser.FAIL);
+    test_parse(parser, 'b', 'integer', Parser.FAIL)
+    test_parse(parser, '', 'integer', Parser.FAIL)
 
     # Addition tests
-    test_parse(parser, 'b', 'add_expression', Parser.FAIL);
-    test_parse(parser, ' ', 'add_expression', Parser.FAIL);
-    test_parse(parser, '3-', 'add_expression', Parse(3,1));
-    test_parse(parser, '3-+', 'add_expression', Parse(3,1));
+    test_parse(parser, 'b', 'add_expression', Parser.FAIL)
+    test_parse(parser, ' ', 'add_expression', Parser.FAIL)
+    test_parse(parser, '3-', 'add_expression', Parse(3,1))
+    test_parse(parser, '3-+', 'add_expression', Parse(3,1))
     test_parse(parser, '3+4', 'add_expression', Parse(7,3))
     test_parse(parser, '2020+2021', 'add_expression', Parse(4041,9))
     test_parse(parser, '0+0', 'add_expression', Parse(0,3))
