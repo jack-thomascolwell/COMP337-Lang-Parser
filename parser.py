@@ -1,21 +1,27 @@
 class Parse:
 
-    def __init__(self, value, index):
-        self.value = value
+    def __init__(self, type, index, *children):
+        self.type = type
         self.index = index
+        self.children = children
 
     def __eq__(self, other):
-        return (
-            isinstance(other, Parse)
-            and self.value == other.value
-            and self.index == other.index
-        )
+        eq = isinstance(other, Parse) and self.index == other.index and self.type == other.type
+        for child, otherChild in zip(self.children, other.children):
+            eq = eq and (child == otherChild)
+            if (not eq):
+                return False
+        return True
 
     def __str__(self):
-        return 'Parse(value={}, index{})'.format(self.value, self.index)
+        string = '(%s '%self.type
+        for child in self.children:
+            string += str(child) + ' '
+        string = string[:-1] + ')'
+        return string
 
 class Parser:
-    FAIL = Parse(0,-1)
+    FAIL = Parse('fail',-1)
 
     def __init__(self):
         self._cache = dict()
