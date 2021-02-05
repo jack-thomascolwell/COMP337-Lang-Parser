@@ -95,10 +95,16 @@ class Parser:
         mul_div_expression = self.parse(string, 'mul_div_expression', index)
         if (mul_div_expression == Parser.FAIL):
             return Parser.FAIL
-        add_tail = self._zero_or_more(string, index + mul_div_expression.index, 'add_tail')
-        if (add_tail == Parser.FAIL):
-            return Parser.FAIL
-        return Parse(mul_div_expression.value + add_tail.value, mul_div_expression.index + add_tail.index)
+        index = mul_div_expression.index
+
+        add_tails = self._zero_or_more(string, index, 'add_tail')
+
+        parsed = mul_div_expression
+        for tail in add_tails:
+            index = tail.index
+            parsed = Parse(tail.children[0].type, index, parsed, tail.children[1])
+
+        return parsed
 
     def _parse_mul_div_expression(self, string, index):
         operand = self.parse(string, 'operand', index)
@@ -110,15 +116,17 @@ class Parser:
         return Parse(int(operand.value * mul_tail.value), operand.index + mul_tail.index) # for floor division ??
 
     def _parse_add_tail(self, string, index):
-        operator = self._choose(string, index, 'add_operator', 'sub_operator', 'mul_operator', 'div_operator')
+        operator = self._choose(string, index, 'add_operator', 'sub_operator')
         if (operator == Parser.FAIL):
             return Parser.FAIL
-        mul_div_expression = self.parse(string, 'mul_div_expression', index + operator.index)
+        index = operator.index
+
+        mul_div_expression = self.parse(string, 'mul_div_expression', index)
         if (mul_div_expression == Parser.FAIL):
             return Parser.FAIL
-        if string[index] == '*' or string[index] == '/':
-            return Parse(operator.value ** operand.value, operand.index + operator.index)
-        return Parse(operator.value * operand.value, operand.index + operator.index)
+        index = mul_div_expression.index
+
+        return Parse('add tail', index, operator, mul_div_expression)
 
     def _parse_operand(self, string, index):
         return self._choose(string, index, 'parenthesized_expression', 'integer')
