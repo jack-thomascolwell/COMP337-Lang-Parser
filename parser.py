@@ -39,37 +39,28 @@ class Parser:
         self._cache[(term,index)] = result
         return result
 
-    def _parse_constant(self, string, index, constant):
-        if (index > string.length()):
-            return Parser.FAIL
-        return
-
     def _zero_or_more(self, string, index, term):
-        value = 0
-        parsed = 0
+        parsed = []
         result = self.parse(string, term, index)
         while (result != Parser.FAIL):
-            index += result.index
-            value += result.value
-            parsed += result.index
+            index = result.index
+            parsed.push(result)
             result = self.parse(string, term, index)
-        return Parse(value, parsed)
+        return parsed
 
     def _one_or_more(self, string, index, term):
         first = self.parse(string, term, index)
-        if (first == Parser.FAIL):
+        if (parsed == Parser.FAIL):
             return Parser.FAIL
-        rest = self._zero_or_more(string, term, index + first.index)
-        return Parse(first.value + rest.value, rest.index)
+        index = first.index
+        rest = self._zero_or_more(string, term, index)
+        return [first, *rest]
 
     def _zero_or_one(self, string, index, term):
-        first = self.parse(string, term, index)
-        if (first == Parser.FAIL):
-            return Parse(0,0)
-        next = self.parse(string, term, index + first.parse)
-        if (next == Parser.FAIL):
-            return first
-        return Parse(first.value + next.value, next.index)
+        parse = self.parse(string, term, index)
+        if (parse == Parser.FAIL):
+            return Parse('null',0) #FIXME This needs to return a nothing parse?
+        return parse
 
     def _choose(self, string, index, *terms):
         for term in terms:
@@ -83,7 +74,7 @@ class Parser:
             return Parser.FAIL
         if (string[index] != character):
             return Parser.FAIL
-        return Parse(0,1)
+        return Parse('character',index + 1)
 
     def _parse_parenthesized_expression(self, string, index):
         parenthesis = self._character(string, index, '(')
