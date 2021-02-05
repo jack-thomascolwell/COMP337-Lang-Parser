@@ -59,8 +59,8 @@ class Parser:
     def _zero_or_one(self, string, index, term):
         parse = self.parse(string, term, index)
         if (parse == Parser.FAIL):
-            return Parse('null',0) #FIXME This needs to return a nothing parse?
-        return parse
+            return []
+        return [parse]
 
     def _choose(self, string, index, *terms):
         for term in terms:
