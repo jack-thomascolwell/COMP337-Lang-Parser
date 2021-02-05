@@ -106,6 +106,19 @@ class Parser:
 
         return parsed
 
+    def _parse_add_tail(self, string, index):
+        operator = self._choose(string, index, 'add_operator', 'sub_operator')
+        if (operator == Parser.FAIL):
+            return Parser.FAIL
+        index = operator.index
+
+        mul_div_expression = self.parse(string, 'mul_div_expression', index)
+        if (mul_div_expression == Parser.FAIL):
+            return Parser.FAIL
+        index = mul_div_expression.index
+
+        return Parse('add tail', index, operator, mul_div_expression)
+
     def _parse_mul_div_expression(self, string, index):
         operand = self.parse(string, 'operand', index)
         if (operand == Parser.FAIL):
@@ -133,19 +146,6 @@ class Parser:
         index = operand.index
 
         return Parse('add tail', index, operator, operand)
-
-    def _parse_add_tail(self, string, index):
-        operator = self._choose(string, index, 'add_operator', 'sub_operator')
-        if (operator == Parser.FAIL):
-            return Parser.FAIL
-        index = operator.index
-
-        mul_div_expression = self.parse(string, 'mul_div_expression', index)
-        if (mul_div_expression == Parser.FAIL):
-            return Parser.FAIL
-        index = mul_div_expression.index
-
-        return Parse('add tail', index, operator, mul_div_expression)
 
     def _parse_operand(self, string, index):
         return self._choose(string, index, 'parenthesized_expression', 'integer')
