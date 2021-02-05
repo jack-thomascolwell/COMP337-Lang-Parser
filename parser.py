@@ -110,10 +110,29 @@ class Parser:
         operand = self.parse(string, 'operand', index)
         if (operand == Parser.FAIL):
             return Parser.FAIL
-        mul_tail = self._one_or_more(string, index + operand.index, 'add_tail')
-        if (mul_tail == Parser.FAIL):
-            return Parse(1, 0)
-        return Parse(int(operand.value * mul_tail.value), operand.index + mul_tail.index) # for floor division ??
+        index = operand.index
+
+        mul_tails = self._zero_or_more(string, index + operand.index, 'mul_tail')
+
+        parsed = operand
+        for tail in mul_tails:
+            index = tail.index
+            parsed = Parse(tail.children[0].type, index, parsed, tail.children[1])
+
+        return parsed
+
+    def _parse_mul_tail(self, string, index):
+        operator = self._choose(string, index, 'mul_operator', 'div_operator')
+        if (operator == Parser.FAIL):
+            return Parser.FAIL
+        index = operator.index
+
+        operand = self.parse(string, 'operand', index)
+        if (operand == Parser.FAIL):
+            return Parser.FAIL
+        index = operand.index
+
+        return Parse('add tail', index, operator, operand)
 
     def _parse_add_tail(self, string, index):
         operator = self._choose(string, index, 'add_operator', 'sub_operator')
