@@ -151,12 +151,13 @@ class Parser:
         return self._choose(string, index, 'parenthesized_expression', 'integer')
 
     def _parse_integer(self, string, index):
-        i=index
-        while (i < len(string) and string[i].isdigit()):
-            i+=1
-        if (i==index):
+        parsed = ''
+        while (index < len(string) and string[i].isdigit()):
+            index++
+            parsed += string[i]
+        if (parsed == ''):
             return Parser.FAIL
-        return Parse(int(string[index:i]), i - index)
+        return Parse('integer', index, int(parsed))
 
     def _parse_sub_operator(self, string, index):
         leading_space = self._zero_or_more(string, index, 'whitespace')
