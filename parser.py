@@ -2,6 +2,7 @@ from parse import Parse
 
 class Parser:
     FAIL = Parse('fail',-1)
+    KEYWORDS = ['print', 'var', 'if', 'else', 'while', 'func', 'ret', 'class', 'int', 'bool', 'string']
 
     def __init__(self):
         self._cache = dict()
@@ -30,7 +31,7 @@ class Parser:
 
     def _one_or_more(self, string, index, term):
         first = self.parse(string, term, index)
-        if (parsed == Parser.FAIL):
+        if (first == Parser.FAIL):
             return Parser.FAIL
         index = first.index
         rest = self._zero_or_more(string, term, index)
@@ -55,6 +56,33 @@ class Parser:
         if (string[index] != character):
             return Parser.FAIL
         return Parse('character',index + 1)
+
+    # FIXME there's already a variable named _string so this should be renamed
+    def _string1(self, string, index, word):
+        if (index >= len(string)):
+            return Parser.FAIL
+        i = index
+        for char in word:
+            if string[i] != char:
+                return Parser.FAIL
+            i += 1
+        index = i
+        return Parse('string', index)
+
+    # def _parse_program(self, string, index):
+    #     space = self.parse(string, 'opt_space', index)
+    #     index = space.index
+    #     program = self._zero_or_more(string, index, 'program_tail')
+
+
+    # def _parse_program_tail(self, string, index):
+    #     statement = self.parse(string, 'statement', index)
+    #     if statement == Parser.FAIL:
+    #         return Parser.FAIL
+    #     index = statement.index
+    #     space = self.parse(string, 'opt_space', index)
+    #     index = space.index
+    #     return Parse('program tail', index)
 
     def _parse_parenthesized_expression(self, string, index):
         parenthesis = self._character(string, index, '(')
@@ -132,8 +160,85 @@ class Parser:
 
         return Parse('add tail', index, operator.type, operand)
 
+    def _parse_assignment_statement(self, string, index):
+        location = self.parse(string, 'identifier', index)
+        if (location == Parser.FAIL):
+            return Parser.FAIL
+        location.type = 'varloc'
+        index = location.index
+
+        space = self.parse(string, 'opt_space', index)
+        index = space.index
+
+        equals = self._character(string, index, '=')
+        if (equals == Parser.FAIL):
+            return Parser.FAIL
+        index = equals.index
+
+        space = self.parse(string, 'opt_space', index)
+        index = space.index
+
+        expression = self.parse(string, 'add_expression', index)
+        if (expression == Parser.FAIL):
+            return Parser.FAIL
+        index = expression.index
+ 
+        space = self.parse(string, 'opt_space', index)
+        index = space.index
+
+        semicolon = self._character(string, index, ';')
+        if (semicolon == Parser.FAIL):
+            return Parser.FAIL
+        index = semicolon.index
+
+        return Parse('assign', index, location, expression)
+
+    def _parse_identifier(self, string, index):
+        first = self._choose(string, index, 'alpha', 'underscore')
+        if (first == Parser.FAIL):
+            return Parser.FAIL
+        index = first.index
+        id_tails = self._zero_or_more(string, index, 'identifier_tail')
+        identifier = string[index - 1]
+        if (len(id_tails) > 0):
+            last_index = id_tails[len(id_tails) - 1].index
+        else:
+            last_index = index
+        for tail in id_tails:
+            if tail.children[0].index > last_index:
+                break
+            identifier += string[tail.children[0].index -1]
+        if identifier in Parser.KEYWORDS:
+            return Parser.FAIL
+        return Parse('lookup', last_index, identifier)
+        
+    def _parse_identifier_tail(self, string, index):
+        id_char = self._choose(string, index, 'alpha', 'integer', 'underscore')
+        if (id_char == Parser.FAIL):
+            return Parser.FAIL
+        index = id_char.index
+        return Parse('identifier tail', index, id_char) # FIXME ?
+
+    def _parse_declaration_statement(self, string, index):
+        word = self._string1(string, index, 'var')
+        if (word == Parser.FAIL):
+            return Parser.FAIL
+        index = word.index
+
+        space = self._character(string, index, ' ')
+        if (space == Parser.FAIL):
+            return Parser.FAIL
+        index = space.index
+
+        assignment_statement = self.parse(string, 'assignment_statement', index)
+        if (assignment_statement == Parser.FAIL):
+            return Parser.FAIL
+        index = assignment_statement.index
+        return Parse('declare', index, assignment_statement.children[0], assignment_statement.children[1]) # FIXME??
+
+
     def _parse_operand(self, string, index):
-        return self._choose(string, index, 'parenthesized_expression', 'integer')
+        return self._choose(string, index, 'parenthesized_expression', 'integer', 'identifier')
 
     def _parse_integer(self, string, index):
         parsed = ''
@@ -202,13 +307,28 @@ class Parser:
             index = space[len(space) - 1].index
         return Parse('whitespace',index)
 
+    # FIXME need to add newlines and comments to whitespace
     def _parse_whitespace(self, string, index):
         space = self._character(string, index, ' ')
         if (space == Parser.FAIL):
             return Parser.FAIL
         index += 1
-
         return Parse('whitespace',index)
+
+    def _parse_alpha(self, string, index):
+        if (index >= len(string)):
+            return Parser.FAIL
+        if not string[index].isalpha():
+            return Parser.FAIL
+        index += 1
+        return Parse('alpha', index)
+
+    def _parse_underscore(self, string, index):
+        underscore = self._character(string, index, '_')
+        if (underscore == Parser.FAIL):
+            return Parser.FAIL
+        index += 1
+        return Parse('_', index)
 
 
 def test_parse(parser, string, term, expected):
@@ -282,10 +402,10 @@ def test():
     test_parse(parser, '3+4-(5-6)+9', 'add_expression', Parse(17,11))
 
     # Multiplication Tests
-    test_parse(parser, 'b', 'mul_div_expression', Parser.FAIL);
-    test_parse(parser, ' ', 'mul_div_expression', Parser.FAIL);
-    test_parse(parser, '3*', 'mul_div_expression', Parse(3,1));
-    test_parse(parser, '3**', 'mul_div_expression', Parse(3,1));
+    test_parse(parser, 'b', 'mul_div_expression', Parser.FAIL)
+    test_parse(parser, ' ', 'mul_div_expression', Parser.FAIL)
+    test_parse(parser, '3*', 'mul_div_expression', Parse(3,1))
+    test_parse(parser, '3**', 'mul_div_expression', Parse(3,1))
     test_parse(parser, '3*4', 'mul_div_expression', Parse(12,3))
     test_parse(parser, '2020*2021', 'mul_div_expression', Parse(2021*2020,9))
     test_parse(parser, '0*0', 'mul_div_expression', Parse(0,3))
@@ -296,12 +416,13 @@ def test():
     test_parse(parser, '42*0', 'mul_div_expression', Parse(0,4))
     test_parse(parser, '123*234*345', 'mul_div_expression', Parse(123*234*345,11))
     test_parse(parser, '0)', 'mul_div_expression', Parse(0,1))
+    test_parse(parser, '0)', 'mul_div_expression', Parse(0,1))
 
     # Division Tests
-    test_parse(parser, 'b', 'mul_div_expression', Parser.FAIL);
-    test_parse(parser, ' ', 'mul_div_expression', Parser.FAIL);
-    test_parse(parser, '3/', 'mul_div_expression', Parse(3,1));
-    test_parse(parser, '3//', 'mul_div_expression', Parse(3,1));
+    test_parse(parser, 'b', 'mul_div_expression', Parser.FAIL)
+    test_parse(parser, ' ', 'mul_div_expression', Parser.FAIL)
+    test_parse(parser, '3/', 'mul_div_expression', Parse(3,1))
+    test_parse(parser, '3//', 'mul_div_expression', Parse(3,1))
     test_parse(parser, '3/4', 'mul_div_expression', Parse(0.75,3))
     test_parse(parser, '2020/2021', 'mul_div_expression', Parse(2021/2020,9))
     test_parse(parser, '1/1/', 'mul_div_expression', Parse(1,3))
@@ -311,6 +432,7 @@ def test():
     test_parse(parser, '42/2', 'mul_div_expression', Parse(21,4))
     test_parse(parser, '123/234/345', 'mul_div_expression', Parse(123/234/345,11))
     test_parse(parser, '0)', 'mul_div_expression', Parse(0,1))
+    test_parse(parser, '2', 'mul_div_expression', Parse(10,16))
 
     # Multiplication and Division Tests
     test_parse(parser, '123*234/345', 'mul_div_expression', Parse(123*234/345,11))
@@ -322,6 +444,8 @@ def test():
     test_parse(parser, '123+2/3-(234*345/2)', 'mul_div_expression', Parse(123+2/3-(234*345/2),19))
 
 def main():
+    parser = Parser()
+    print(parser._parse_declaration_statement('var cat = cat;', 0))
     #test()
     print("FIXME tests won't work to check S-Expressions")
 if __name__ == '__main__':
