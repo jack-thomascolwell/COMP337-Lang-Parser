@@ -14,8 +14,14 @@ class Parse:
         return True
 
     def __str__(self):
-        string = '(%s '%self.type
-        for child in self.children:
-            string += str(child) + ' '
-        string = string[:-1] + ')'
+        if self.type == 'integer' or self.type == 'program tail':
+            string = ''
+            for child in self.children:
+                string += str(child) + ' '
+            string = string[:-1]
+        else:
+            string = '(%s '%self.type
+            for child in self.children:
+                string += str(child) + ' '
+            string = string[:-1] + ')'
         return string

@@ -4,6 +4,8 @@ class Parser:
     FAIL = Parse('fail',-1)
     KEYWORDS = ['print', 'var', 'if', 'else', 'while', 'func', 'ret', 'class', 'int', 'bool', 'string']
 
+    # FIXME add syntax error messages
+
     def __init__(self):
         self._cache = dict()
         self._string = None
@@ -50,6 +52,14 @@ class Parser:
                 return result
         return Parser.FAIL
 
+    def _choose_chars(self, string, index, *terms): #FIXME change fn name
+        for term in terms:
+            result = self._string_term(string, index, term)
+            if (result != Parser.FAIL):
+                result.type = term
+                return result
+        return Parser.FAIL
+
     def _character(self, string, index, character):
         if (index >= len(string)):
             return Parser.FAIL
@@ -57,8 +67,7 @@ class Parser:
             return Parser.FAIL
         return Parse('character',index + 1)
 
-    # FIXME there's already a variable named _string so this should be renamed
-    def _string1(self, string, index, word):
+    def _string_term(self, string, index, word):
         if (index >= len(string)):
             return Parser.FAIL
         i = index
@@ -69,20 +78,337 @@ class Parser:
         index = i
         return Parse('string', index)
 
-    # def _parse_program(self, string, index):
-    #     space = self.parse(string, 'opt_space', index)
-    #     index = space.index
-    #     program = self._zero_or_more(string, index, 'program_tail')
+    def _parse_program(self, string, index):
+        space = self.parse(string, 'opt_space', index)
+        index = space.index
+        program = self._zero_or_more(string, index, 'program_tail')
+        if len(program) != 0:
+            index = program[len(program)-1].index
+        parse = Parse('sequence', index)
+        parse.children = program
+        return parse
 
 
-    # def _parse_program_tail(self, string, index):
-    #     statement = self.parse(string, 'statement', index)
-    #     if statement == Parser.FAIL:
-    #         return Parser.FAIL
-    #     index = statement.index
-    #     space = self.parse(string, 'opt_space', index)
-    #     index = space.index
-    #     return Parse('program tail', index)
+    def _parse_program_tail(self, string, index):
+        statement = self.parse(string, 'statement', index)
+        if statement == Parser.FAIL:
+            return Parser.FAIL
+        index = statement.index
+        space = self.parse(string, 'opt_space', index)
+        index = space.index
+        return Parse('program tail', index, statement)
+
+    def _parse_statement(self, string, index):
+        return self._choose(string, index, 'declaration_statement', 'assignment_statement', 'print_statement', 'expression_statement', 'ifelse_statement', 'if_statement', 'while_statement')
+
+    def _parse_print_statement(self, string, index):
+        p = self._string_term(string, index, 'print')
+        if p == Parser.FAIL:
+            return Parser.FAIL
+        index = p.index
+        space = self._character(string, index, ' ')
+        if space == Parser.FAIL:
+            return Parser.FAIL
+        index = space.index
+        expression = self.parse(string, 'expression', index)
+        if expression == Parser.FAIL:
+            return Parser.FAIL
+        index = expression.index
+        opt_space = self.parse(string, 'opt_space', index)
+        index = opt_space.index
+        semicolon = self._character(string, index, ';')
+        if semicolon == Parser.FAIL:
+            return Parser.FAIL
+        index = semicolon.index
+
+        return Parse('print', index, expression)
+
+    def _parse_expression_statement(self, string, index):
+        startingIndex = index
+        exp = self.parse(string, 'expression', index)
+        if exp == Parser.FAIL:
+            return Parser.FAIL
+        index = exp.index
+
+        space = self.parse(string, 'opt_space', index)
+        index = space.index
+
+        semicolon = self._character(string, index, ';')
+        if semicolon == Parser.FAIL:
+            return Parser.FAIL
+        exp.index = semicolon.index
+        
+        return exp
+
+    def _parse_expression(self, string, index):
+        return self.parse(string, 'or_expression', index)
+
+    def _parse_or_expression(self, string, index):
+        and_exp = self.parse(string, 'and_expression', index)
+        if and_exp == Parser.FAIL:
+            return Parser.FAIL
+        index = and_exp.index
+
+        or_tails = self._zero_or_more(string, index, 'or_tail')
+        parsed = and_exp
+        for tail in or_tails:
+            index = tail.index
+            parsed = Parse(tail.children[0], index, parsed, tail.children[1])
+
+        return parsed
+
+    def _parse_or_tail(self, string, index):
+        operator = self.parse(string, 'or_operator', index)
+        if operator == Parser.FAIL:
+            return Parser.FAIL
+        index = operator.index
+
+        exp = self.parse(string, 'and_expression', index)
+        if exp == Parser.FAIL:
+            return Parser.FAIL
+        index = exp.index
+
+        return Parse('or tail', index, '||', exp)
+
+    def _parse_and_expression(self, string, index):
+        opt_not = self.parse(string, 'opt_not_expression', index)
+        if opt_not == Parser.FAIL:
+            return Parser.FAIL
+        index = opt_not.index
+
+        and_tails = self._zero_or_more(string, index, 'and_tail')
+        parsed = opt_not
+        for tail in and_tails:
+            index = tail.index
+            parsed = Parse(tail.children[0], index, parsed, tail.children[1])
+
+        return parsed
+
+
+    def _parse_and_tail(self, string, index):
+        operator = self.parse(string, 'and_operator', index)
+        if operator == Parser.FAIL:
+            return Parser.FAIL
+        index = operator.index
+
+        exp = self.parse(string, 'opt_not_expression', index)
+        if exp == Parser.FAIL:
+            return Parser.FAIL
+        index = exp.index
+
+        return Parse('and tail', index, '&&', exp)
+
+    def _parse_opt_not_expression(self, string, index):
+        exp = self._choose(string, index, 'comp_expression', 'not_expression')
+        if exp == Parser.FAIL:
+            return Parser.FAIL
+        return exp
+
+    def _parse_not_expression(self, string, index):
+        exclamation = self._character(string, index, '!')
+        if exclamation == Parser.FAIL:
+            return Parser.FAIL
+        index += 1
+        space = self.parse(string, 'opt_space', index)
+        index = space.index
+        comp_exp = self.parse(string, 'comp_expression', index)
+        if comp_exp == Parser.FAIL:
+            return Parser.FAIL
+        index = comp_exp.index
+
+        return Parse('!', index, comp_exp)
+
+
+    def _parse_comp_expression(self, string, index):
+        # FIXME there are extra brackets around the operator even though its the same as add operator?? confused
+        add_sub = self.parse(string, 'add_expression', index)
+        if add_sub == Parser.FAIL:
+            return Parser.FAIL
+        index = add_sub.index
+
+        comp_tail = self._zero_or_one(string, index, 'comp_tail')
+        if len(comp_tail) == 0:
+            return add_sub
+
+        tail = comp_tail[0]
+        index = tail.index
+        parsed = Parse(tail.children[0], index, add_sub, tail.children[1])
+        
+        return parsed
+
+
+    def _parse_comp_tail(self, string, index):
+        # opt leading and trailing spaces included in comp_operator parse, FIXME add this to CHARACTER
+        operator = self.parse(string, 'comp_operator', index)
+        if operator == Parser.FAIL:
+            return Parser.FAIL
+        index = operator.index
+
+        exp = self.parse(string, 'add_expression', index)
+        if exp == Parser.FAIL:
+            return Parser.FAIL
+        index = exp.index
+
+        return Parse('comp tail', index, operator.type, exp)
+
+
+    def _parse_if_statement(self, string, index):
+        _if = self._string_term(string, index, 'if')
+        if _if == Parser.FAIL:
+            return Parser.FAIL
+        index = _if.index
+        space1 = self.parse(string, 'opt_space', index)
+        index = space1.index
+        open_paren = self._character(string, index, '(')
+        if open_paren == Parser.FAIL:
+            return Parser.FAIL
+        index = open_paren.index
+        space2 = self.parse(string, 'opt_space', index)
+        index = space2.index
+        condition = self.parse(string, 'expression', index)
+        if condition == Parser.FAIL:
+            return Parser.FAIL  
+        index = condition.index  
+        space3 = self.parse(string, 'opt_space', index)
+        index = space3.index
+        closed_paren = self._character(string, index, ')')
+        if closed_paren == Parser.FAIL:
+            return Parser.FAIL
+        index = closed_paren.index
+        space4 = self.parse(string, 'opt_space', index)
+        index = space4.index
+        open_bracket = self._character(string, index, '{')
+        if open_bracket == Parser.FAIL:
+            return Parser.FAIL
+        index = open_bracket.index
+        space5 = self.parse(string, 'opt_space', index)
+        index = space5.index
+        program = self.parse(string, 'program', index)
+        if program == Parser.FAIL:
+            return Parser.FAIL
+        index = program.index
+        space6 = self.parse(string, 'opt_space', index)
+        index = space6.index
+        closed_bracket = self._character(string, index, '}')
+        if closed_bracket == Parser.FAIL:
+            return Parser.FAIL
+        index = closed_bracket.index
+
+        return Parse('if', index, condition, program)
+
+    def _parse_ifelse_statement(self, string, index):
+        _if = self._string_term(string, index, 'if')
+        if _if == Parser.FAIL:
+            return Parser.FAIL
+        index = _if.index
+        space1 = self.parse(string, 'opt_space', index)
+        index = space1.index
+        open_paren = self._character(string, index, '(')
+        if open_paren == Parser.FAIL:
+            return Parser.FAIL
+        index = open_paren.index
+        space2 = self.parse(string, 'opt_space', index)
+        index = space2.index
+        condition = self.parse(string, 'expression', index)
+        if condition == Parser.FAIL:
+            return Parser.FAIL  
+        index = condition.index  
+        space3 = self.parse(string, 'opt_space', index)
+        index = space3.index
+        closed_paren = self._character(string, index, ')')
+        if closed_paren == Parser.FAIL:
+            return Parser.FAIL
+        index = closed_paren.index
+        space4 = self.parse(string, 'opt_space', index)
+        index = space4.index
+        open_bracket = self._character(string, index, '{')
+        if open_bracket == Parser.FAIL:
+            return Parser.FAIL
+        index = open_bracket.index
+        space5 = self.parse(string, 'opt_space', index)
+        index = space5.index
+        if_program = self.parse(string, 'program', index)
+        if if_program == Parser.FAIL:
+            return Parser.FAIL
+        index = if_program.index
+        space6 = self.parse(string, 'opt_space', index)
+        index = space6.index
+        closed_bracket = self._character(string, index, '}')
+        if closed_bracket == Parser.FAIL:
+            return Parser.FAIL
+        index = closed_bracket.index
+        space7 = self.parse(string, 'opt_space', index)
+        index = space7.index
+        _else = self._string_term(string, index, 'else')
+        if _else == Parser.FAIL:
+            return Parser.FAIL
+        index = _else.index
+        space8 = self.parse(string, 'opt_space', index)
+        index = space8.index
+        open_bracket = self._character(string, index, '{')
+        if open_bracket == Parser.FAIL:
+            return Parser.FAIL
+        index = open_bracket.index
+        space9 = self.parse(string, 'opt_space', index)
+        index = space9.index
+        else_program = self.parse(string, 'program', index)
+        if else_program == Parser.FAIL:
+            return Parser.FAIL
+        index = else_program.index
+        space10 = self.parse(string, 'opt_space', index)
+        index = space10.index
+        closed_bracket = self._character(string, index, '}')
+        if closed_bracket == Parser.FAIL:
+            return Parser.FAIL
+        index = closed_bracket.index
+
+        return Parse('ifelse', index, condition, if_program, else_program)
+
+    def _parse_while_statement(self, string, index):
+        _while = self._string_term(string, index, 'while')
+        if _while == Parser.FAIL:
+            return Parser.FAIL
+        index = _while.index
+        space1 = self.parse(string, 'opt_space', index)
+        index = space1.index
+        open_paren = self._character(string, index, '(')
+        if open_paren == Parser.FAIL:
+            return Parser.FAIL
+        index = open_paren.index
+        space2 = self.parse(string, 'opt_space', index)
+        index = space2.index
+        condition = self.parse(string, 'expression', index)
+        if condition == Parser.FAIL:
+            return Parser.FAIL  
+        index = condition.index  
+        space3 = self.parse(string, 'opt_space', index)
+        index = space3.index
+        closed_paren = self._character(string, index, ')')
+        if closed_paren == Parser.FAIL:
+            return Parser.FAIL
+        index = closed_paren.index
+        space4 = self.parse(string, 'opt_space', index)
+        index = space4.index
+        open_bracket = self._character(string, index, '{')
+        if open_bracket == Parser.FAIL:
+            return Parser.FAIL
+        index = open_bracket.index
+        space5 = self.parse(string, 'opt_space', index)
+        index = space5.index
+        body = self.parse(string, 'program', index)
+        if body == Parser.FAIL:
+            return Parser.FAIL
+        index = body.index
+        space6 = self.parse(string, 'opt_space', index)
+        index = space6.index
+        closed_bracket = self._character(string, index, '}')
+        if closed_bracket == Parser.FAIL:
+            return Parser.FAIL
+        index = closed_bracket.index
+
+        return Parse('while', index, condition, body)
+        
+
 
     def _parse_parenthesized_expression(self, string, index):
         parenthesis = self._character(string, index, '(')
@@ -136,6 +462,8 @@ class Parser:
         operand = self.parse(string, 'operand', index)
         if (operand == Parser.FAIL):
             return Parser.FAIL
+        # if (operand.type == 'integer'):
+        #     operand = operand.children[0]
         index = operand.index
 
         mul_tails = self._zero_or_more(string, index, 'mul_tail')
@@ -151,6 +479,7 @@ class Parser:
         operator = self._choose(string, index, 'mul_operator', 'div_operator')
         if (operator == Parser.FAIL):
             return Parser.FAIL
+        
         index = operator.index
 
         operand = self.parse(string, 'operand', index)
@@ -217,10 +546,10 @@ class Parser:
         if (id_char == Parser.FAIL):
             return Parser.FAIL
         index = id_char.index
-        return Parse('identifier tail', index, id_char) # FIXME ?
+        return Parse('identifier tail', index, id_char)
 
     def _parse_declaration_statement(self, string, index):
-        word = self._string1(string, index, 'var')
+        word = self._string_term(string, index, 'var')
         if (word == Parser.FAIL):
             return Parser.FAIL
         index = word.index
@@ -234,7 +563,52 @@ class Parser:
         if (assignment_statement == Parser.FAIL):
             return Parser.FAIL
         index = assignment_statement.index
-        return Parse('declare', index, assignment_statement.children[0], assignment_statement.children[1]) # FIXME??
+        return Parse('declare', index, assignment_statement.children[0], assignment_statement.children[1])
+
+    def _parse_parameters(self, string, index):
+        params = self._zero_or_one(string, index, 'parameters_inner')
+        if len(params) == 0: # is this even right? check for num children being > 0 wherever this is called?
+            return Parse('parameters', index)
+        return Parse('parameters', params[0].index, params[0].children)
+
+
+    def _parse_parameters_inner(self, string, index):
+        identifier = self.parse(string, 'identifier', index)
+        if identifier == Parser.FAIL:
+            return Parser.FAIL
+        index = identifier.index
+
+        space1 = self.parse(string, 'opt_space', index)
+        index = space1.index
+
+        param_tails = self._zero_or_more(string, index, 'parameter_tail')
+        param_tails.insert(0, identifier)
+
+        for tail in param_tails:
+            index = tail.index
+
+        return Parse('params inner', index, param_tails)
+        
+
+    def _parse_parameter_tail(self, string, index):
+        comma = self._character(string, index, ',')
+        if comma == Parser.FAIL:
+            return Parser.FAIL
+        index += 1
+
+        leading_space = self.parse(string, 'opt_space', index)
+        index = leading_space.index
+        
+        identifier = self.parse(string, 'identifier', index)
+        if identifier == Parser.FAIL:
+            return Parser.FAIL
+        index = identifier.index
+
+        trailing_space = self.parse(string, 'opt_space', index)
+        index = trailing_space.index
+
+        return Parse('param tail', index, identifier)
+
 
 
     def _parse_operand(self, string, index):
@@ -301,19 +675,78 @@ class Parser:
         index = trailing_space.index
         return Parse('/',index)
 
+    def _parse_comp_operator(self, string, index):
+        leading_space = self.parse(string, 'opt_space', index)
+        index = leading_space.index
+
+        operator = self._choose_chars(string, index, '==', '!=', '<=', '>=', '<', '>')
+        if (operator == Parser.FAIL):
+            return Parser.FAIL
+        index = operator.index
+
+        trailing_space = self.parse(string, 'opt_space', index)
+        index = trailing_space.index
+        return Parse(operator.type, index)
+
+    def _parse_and_operator(self, string, index):
+        leading_space = self.parse(string, 'opt_space', index)
+        index = leading_space.index
+
+        operator = self._string_term(string, index, '&&')
+        if (operator == Parser.FAIL):
+            return Parser.FAIL
+        index += 2
+
+        trailing_space = self.parse(string, 'opt_space', index)
+        index = trailing_space.index
+        return Parse('&&', index)
+
+    def _parse_or_operator(self, string, index):
+        leading_space = self.parse(string, 'opt_space', index)
+        index = leading_space.index
+
+        operator = self._string_term(string, index, '||')
+        if (operator == Parser.FAIL):
+            return Parser.FAIL
+        index += 2
+
+        trailing_space = self.parse(string, 'opt_space', index)
+        index = trailing_space.index
+        return Parse('||', index)
+
     def _parse_opt_space(self, string, index):
         space = self._zero_or_more(string, index, 'whitespace')
         if (len(space) > 0):
             index = space[len(space) - 1].index
-        return Parse('whitespace',index)
+        return Parse('whitespace', index)
 
     # FIXME need to add newlines and comments to whitespace
     def _parse_whitespace(self, string, index):
-        space = self._character(string, index, ' ')
-        if (space == Parser.FAIL):
+        # space = self._choose_chars(string, index, ' ', '\n')
+        # if space == Parser.FAIL:
+        #     comment = self.parse(string, 'comment', index)
+        #     if (comment == Parser.FAIL):
+        #         return Parser.FAIL
+        # else:
+        #     index += 1
+        # return Parse('whitespace',index)
+
+        space = self._choose_chars(string, index, ' ', '\n')
+        if space == Parser.FAIL:
             return Parser.FAIL
         index += 1
-        return Parse('whitespace',index)
+        return Parse('whitespace', index)
+
+    def _parse_comment(self, string, index):
+        pound = self._character(string, index, '#')
+        if pound == Parser.FAIL:
+            return Parser.FAIL
+        index += 1
+        while string[index] != '\n' and index < len(string):
+            index += 1
+        index += 1
+        
+        return Parse('comment', index)
 
     def _parse_alpha(self, string, index):
         if (index >= len(string)):
@@ -445,7 +878,10 @@ def test():
 
 def main():
     parser = Parser()
-    print(parser._parse_declaration_statement('var cat = cat;', 0))
+    # print(parser._parse_while_statement('while(i<10){i=i+1;}', 0))
+    # print(parser._parse_comp_expression('1>2', 0))
+    #print(parser._parse_program('if(1){1+1;}else{1-1;}', 0))
+    #print(parser._parse_parameters('1 2 3 4', 0)) # FIXME this is hecked
     #test()
     print("FIXME tests won't work to check S-Expressions")
 if __name__ == '__main__':
