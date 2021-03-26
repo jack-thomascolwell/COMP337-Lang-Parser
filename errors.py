@@ -21,3 +21,19 @@ class VariableAlreadyDefinedError(RuntimeError):
 class UndefinedVariableError(RuntimeError):
     def __str__(self):
         return ("runtime error: undefined variable")
+
+class IllegalReturnError(RuntimeError):
+    def __str__(self):
+        return ("runtime error: returning outside function")
+
+class ArgumentMismatchError(RuntimeError):
+    def __str__(self):
+        return ("runtime error: argument mismatch")
+
+class CallingNonFunctionError(RuntimeError):
+    def __str__(self):
+        return "runtime error: calling a non-function"
+
+class MathOperationOnFunctionError(RuntimeError):
+    def __str__(self):
+        return "runtime error: math operation on functions"
