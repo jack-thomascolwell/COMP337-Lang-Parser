@@ -227,6 +227,15 @@ class Interpreter:
             self._exec(body)
         self.__environment = self.__environment.get_parent()
 
+    def _exec_ifelse(self, parse):
+        (cond, body_if, body_else) = parse.children
+        self.__environment = Environment(self.__environment)
+        if(self._eval(cond) != 0):
+            self._exec(body_if)
+        else:
+            self._exec(body_else)
+        self.__environment = self.__environment.get_parent()
+
 addn = Parse("sequence", 0, Parse("print", 0, 1), Parse("print", 0, Parse('+',0, 2, 3)))
 look = Parse("sequence", 0, Parse("declare", 0, 'a', 1), Parse("print", 0, Parse('lookup', 0, 'a')), Parse("assign", 0, Parse("varloc", 0, 'a'), 3), Parse("print", 0, Parse('lookup', 0, 'a')))
 control = Parse("sequence", 0, Parse("declare", 0, 'a', 5), Parse("while", 0, Parse('lookup', 0, 'a'), Parse('sequence', 0, Parse("assign", 0, Parse("varloc", 0, 'a'), Parse("-", 0, Parse("lookup", 0, 'a'), 1)), Parse('print', 0, Parse('lookup', 0, 'a')))))
