@@ -14,4 +14,4 @@ class Closure:
         return self.__environment;
 
     def __str__(self):
-        return "(closure (parameters %s) %s)"%(' '.join(self.__params), self.__body)
+        return "closure"

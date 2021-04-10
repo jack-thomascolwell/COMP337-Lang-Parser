@@ -37,3 +37,7 @@ class CallingNonFunctionError(RuntimeError):
 class MathOperationOnFunctionError(RuntimeError):
     def __str__(self):
         return "runtime error: math operation on functions"
+
+class DuplicateParameterError(RuntimeError):
+    def __str__(self):
+        return "runtime error: duplicate parameter"
