@@ -83,7 +83,7 @@ def test_sexp(sexp_path, parse, message):
     assert actual_sexp == expected_sexp, '\n' + '\n'.join(error)
 
 
-def test_with_file(lang_path, interpreter_only):
+def test_with_file(lang_path, interpreter_only, parser_only):
     """Test using the lang program at the file path.
 
     Parameters:
@@ -99,7 +99,7 @@ def test_with_file(lang_path, interpreter_only):
     print(f'RUNNING {lang_path}')
     print(program)
     # parse the code
-    if (not interpreter_only):
+    if (not (interpreter_only or parser_only)):
         parser = Parser()
         parse = parser.parse(program, 'program')
         if parse is None:
@@ -127,7 +127,7 @@ def test_with_file(lang_path, interpreter_only):
             lines.append('ACTUAL OUTPUT:')
             lines.append(actual_output)
             assert actual_output == expected_output, '\n'.join(lines)
-    else:
+    elif (interpreter_only):
         sexp_path = lang_path.parent.joinpath(lang_path.stem + '.sexp')
         if not sexp_path.exists():
             print('no sexp (no file)')
@@ -161,15 +161,41 @@ def test_with_file(lang_path, interpreter_only):
             lines.append('ACTUAL OUTPUT:')
             lines.append(actual_output)
             assert actual_output == expected_output, '\n'.join(lines)
+    else:
+        parser = Parser()
+        parse = parser.parse(program, 'program')
+        if parse is None:
+            # if there's a syntax error, that's our only output
+            actual_output = 'syntax error'
+            # read the expected output
+            out_path = lang_path.parent.joinpath(lang_path.stem + '.out')
+            with out_path.open() as fd:
+                expected_output = fd.read()
+            # process the expected and actual output to deal with newlines
+            expected_output = fix_newlines(expected_output)
+            actual_output = fix_newlines(actual_output)
+            # check against the output
+            if actual_output != expected_output:
+                lines = ['\n\n']
+                lines.append('EXPECTED OUTPUT:')
+                lines.append(expected_output)
+                lines.append('')
+                lines.append('ACTUAL OUTPUT:')
+                lines.append(actual_output)
+                assert actual_output == expected_output, '\n'.join(lines)
+        else:
+            # otherwise, check against the intermediate representation
+            sexp_path = lang_path.parent.joinpath(lang_path.stem + '.sexp')
+            test_sexp(sexp_path, parse, 'intermediate representation does not match')
 
-def test_with_directory(dir_path, interpreter_only):
+def test_with_directory(dir_path, interpreter_only, parser_only):
     """Test using the lang programs in the directory.
 
     Arguments:
         dir_path (Path): A directory containing input programs.
     """
     for lang_path in sorted(dir_path.glob('**/*.lang'), key=(lambda path: str(path).lower())):
-        test_with_file(lang_path, interpreter_only)
+        test_with_file(lang_path, interpreter_only, parser_only)
 
 
 def main():
@@ -178,17 +204,29 @@ def main():
     sys.setrecursionlimit(10**6)
     n = 1
     interpreter_only = False
+    parser_only = False
+
     if (len(sys.argv) > 1 and sys.argv[1] == '-i'):
-        n += 1
+        n+=1
         interpreter_only = True
+    if (len(sys.argv) > 1 and sys.argv[1] == '-p'):
+        n+=1
+        parser_only = True
 
     for arg in sys.argv[n:]:
         path = Path(arg).expanduser().resolve()
         if path.is_dir():
-            test_with_directory(path, interpreter_only)
+            test_with_directory(path, interpreter_only, parser_only)
         else:
-            test_with_file(path, interpreter_only)
-    print("\nPASS")
+            test_with_file(path, interpreter_only, parser_only)
+
+    print()
+    if (interpreter_only):
+        print("interpreter passed all test cases")
+    elif (parser_only):
+        print("parser passed all test cases")
+    else:
+        print("interpreter and parser passed all test cases")
 
 if __name__ == '__main__':
     main()
