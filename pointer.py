@@ -4,10 +4,13 @@ class Pointer:
         self.__var = var
 
     def get(self):
-        self.__environment.get(self.__var)
+        return self.__environment.get(self.__var)
 
     def set(self, val):
         self.__environment.set(self.__var, val)
+
+    def type(self):
+        return self.__environment.get_type(self.__var)
 
     def __str__(self):
         return "-> %s in %s"%(self.__var,self.__environment)

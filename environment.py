@@ -8,13 +8,16 @@ class Environment:
         return str(self.__variables)
 
     def get_parent(self):
-        return self.__parent;
+        return self.__parent
 
     def contains(self, var):
-        return var in self.__variables;
+        return var in self.__variables
 
-    def set(self, var, value):
-        self.__variables[var] = value;
+    def set(self, var, value, varType='var'):
+        self.__variables[var] = [value,varType]
 
     def get(self, var):
-        return self.__variables[var]
+        return self.__variables[var][0]
+
+    def get_type(self, var):
+        return self.__variables[var][1]

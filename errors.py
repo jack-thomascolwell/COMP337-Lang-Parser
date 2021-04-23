@@ -41,3 +41,7 @@ class MathOperationOnFunctionError(RuntimeError):
 class DuplicateParameterError(RuntimeError):
     def __str__(self):
         return "runtime error: duplicate parameter"
+
+class TypeMismatchError(RuntimeError):
+    def __str__(self):
+        return "runtime error: type mismatch"

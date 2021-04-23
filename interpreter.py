@@ -67,14 +67,14 @@ class Interpreter:
 
     def __type(self, value):
         if (isinstance(value, Closure)):
-            return 'closure'
+            return 'func'
         if (isinstance(value, Pointer)):
             return 'pointer'
         if (isinstance(value, Parse)):
             return 'parse'
         if (isinstance(value, Environment)):
             return 'environment'
-        return 'integer'
+        return 'int'
 
     def execute(self, parse):
         self.__tab = 0;
@@ -172,7 +172,7 @@ class Interpreter:
         (operandA, operandB) = parse.children
         resultA = self._eval(operandA)
         resultB = self._eval(operandB)
-        if ((self.__type(resultA) != 'integer') or (self.__type(resultB) != 'integer')):
+        if ((self.__type(resultA) != 'int') or (self.__type(resultB) != 'int')):
             raise MathOperationOnFunctionError()
         if (resultA < resultB):
             return 1
@@ -182,7 +182,7 @@ class Interpreter:
         (operandA, operandB) = parse.children
         resultA = self._eval(operandA)
         resultB = self._eval(operandB)
-        if ((self.__type(resultA) != 'integer') or (self.__type(resultB) != 'integer')):
+        if ((self.__type(resultA) != 'int') or (self.__type(resultB) != 'int')):
             raise MathOperationOnFunctionError()
         if (resultA > resultB):
             return 1
@@ -192,7 +192,7 @@ class Interpreter:
         (operandA, operandB) = parse.children
         resultA = self._eval(operandA)
         resultB = self._eval(operandB)
-        if ((self.__type(resultA) != 'integer') or (self.__type(resultB) != 'integer')):
+        if ((self.__type(resultA) != 'int') or (self.__type(resultB) != 'int')):
             raise MathOperationOnFunctionError()
         if (resultA <= resultB):
             return 1
@@ -202,7 +202,7 @@ class Interpreter:
         (operandA, operandB) = parse.children
         resultA = self._eval(operandA)
         resultB = self._eval(operandB)
-        if ((self.__type(resultA) != 'integer') or (self.__type(resultB) != 'integer')):
+        if ((self.__type(resultA) != 'int') or (self.__type(resultB) != 'int')):
             raise MathOperationOnFunctionError()
         if (resultA >= resultB):
             return 1
@@ -212,7 +212,7 @@ class Interpreter:
         (operandA, operandB) = parse.children
         resultA = self._eval(operandA)
         resultB = self._eval(operandB)
-        if ((self.__type(resultA) != 'integer') or (self.__type(resultB) != 'integer')):
+        if ((self.__type(resultA) != 'int') or (self.__type(resultB) != 'int')):
             if (resultA is resultB):
                 return 1
             return 0
@@ -224,7 +224,7 @@ class Interpreter:
         (operandA, operandB) = parse.children
         resultA = self._eval(operandA)
         resultB = self._eval(operandB)
-        if ((self.__type(resultA) != 'integer') or (self.__type(resultB) != 'integer')):
+        if ((self.__type(resultA) != 'int') or (self.__type(resultB) != 'int')):
             if (resultA is resultB):
                 return 0
             return 1
@@ -233,10 +233,18 @@ class Interpreter:
         return 0
 
     def _eval_function(self, parse):
-        (params, body) = parse.children
+        signature = []
+        params = parse.children[0]
+        body = parse.children[1]
+        nameIndex = 0
+        if (len(parse.children) == 3):
+            (signature, params, body) = parse.children
+            signature = signature.children
+        else:
+            signature = ['var'] * (len(params.children) + 1)
         if (len(params.children) != len(set(params.children))):
             raise DuplicateParameterError()
-        return Closure(params.children, body, self.__environment)
+        return Closure(params.children, body, self.__environment, signature)
 
     def _eval_call(self, parse):
         closure = self._eval(parse.children[0])
@@ -249,9 +257,11 @@ class Interpreter:
             raise ArgumentMismatchError()
 
         func_environment = Environment(closure.environment())
-        for param, arg in zip(closure.params(), args.children):
+        for param, arg, type in zip(closure.params(), args.children, closure.signature()[:-1]):
             val = self._eval(arg)
-            func_environment.set(param, val)
+            if (type not in ('var', self.__type(val))):
+                raise TypeMismatchError()
+            func_environment.set(param, val, type)
 
         original_environment = self.__environment
         self.__environment = func_environment
@@ -263,6 +273,8 @@ class Interpreter:
         self._exec(closure.body())
 
         value = self.__return
+        if (closure.signature()[-1] not in ('var', self.__type(value))):
+            raise TypeMismatchError()
 
         self.__function_depth -= 1
         self.__return = 0
@@ -283,15 +295,25 @@ class Interpreter:
             self._exec(statement)
 
     def _exec_declare(self, parse):
-        val = self._eval(parse.children[1])
-        var = parse.children[0]
+        type = 'var'
+        nameIndex = 0
+        if (len(parse.children) == 3):
+            type = parse.children[0]
+            nameIndex += 1
+        val = self._eval(parse.children[nameIndex + 1])
+        var = parse.children[nameIndex]
         if (self.__environment.contains(var)):
             raise VariableAlreadyDefinedError()
-        self.__environment.set(var, val)
+        if (type not in ('var', self.__type(val))):
+            raise TypeMismatchError()
+        self.__environment.set(var, val, type)
 
     def _exec_assign(self, parse):
         val = self._eval(parse.children[1])
         ptr = self._eval(parse.children[0])
+        type = ptr.type()
+        if (type not in ('var', self.__type(val))):
+            raise TypeMismatchError()
         ptr.set(val)
 
     def _exec_while(self, parse):
@@ -333,7 +355,7 @@ def main():
     #control = Parse("sequence", 0, Parse("declare", 0, 'a', 5), Parse("while", 0, Parse('lookup', 0, 'a'), Parse('sequence', 0, Parse("assign", 0, Parse("varloc", 0, 'a'), Parse("-", 0, Parse("lookup", 0, 'a'), 1)), Parse('print', 0, Parse('lookup', 0, 'a')))))
     #function = Parse("sequence", 0, Parse("declare", 0, 'a', Parse("function", 0, Parse("parameters", 0, 'a'), Parse('sequence', 0, Parse('print', 0, Parse('lookup', 0, 'a'))))), Parse("call", 0, Parse("lookup", 0 ,'a'), Parse("arguments", 0, 12)))
 
-    program = sexp('(sequence (declare foo (function (parameters a b a) (sequence (print (lookup a)) (print (lookup b))))) (call (lookup foo) (arguments 1 2 3)))')
+    program = sexp('(sequence (declare func foo (function (signature int var) (parameters x) (sequence (declare func bar (function (parameters) (sequence))) (if (== (lookup x) 1) (sequence (return 1))) (return (lookup bar))))) (declare int x (call (lookup foo) (arguments 1))) (declare func y (call (lookup foo) (arguments 3))) (print (lookup x)) (print (lookup y)))')
 
     interpreter = Interpreter(True)
     out, debug = interpreter.execute(program)
