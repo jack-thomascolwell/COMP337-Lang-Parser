@@ -1,4 +1,5 @@
 from parse import Parse
+from sexp import sexp
 
 class Parser:
     FAIL = Parse('',-1)
@@ -9,13 +10,14 @@ class Parser:
     def __init__(self):
         self._cache = dict()
         self._string = None
-    
+
     def parse(self, string, term):
         parsed = self._parse(string, term, 0)
         if parsed == Parser.FAIL:
             return None
         if parsed.index < len(string) - 1:
             return None
+        parsed = sexp(str(parsed))
         return parsed
 
     def _parse(self, string, term, index):  # used to have index=0
@@ -170,7 +172,7 @@ class Parser:
             return Parser.FAIL
         index += 1
         return Parse('return', index, exp)
-        
+
 
     def _parse_expression(self, string, index):
         return self._parse(string, 'or_expression', index)
@@ -264,7 +266,7 @@ class Parser:
         tail = comp_tail[0]
         index = tail.index
         parsed = Parse(tail.children[0], index, add_sub, tail.children[1])
-        
+
         return parsed
 
 
@@ -298,8 +300,8 @@ class Parser:
         index = space2.index
         condition = self._parse(string, 'expression', index)
         if condition == Parser.FAIL:
-            return Parser.FAIL  
-        index = condition.index  
+            return Parser.FAIL
+        index = condition.index
         space3 = self._parse(string, 'opt_space', index)
         index = space3.index
         closed_paren = self._character(string, index, ')')
@@ -342,8 +344,8 @@ class Parser:
         index = space2.index
         condition = self._parse(string, 'expression', index)
         if condition == Parser.FAIL:
-            return Parser.FAIL  
-        index = condition.index  
+            return Parser.FAIL
+        index = condition.index
         space3 = self._parse(string, 'opt_space', index)
         index = space3.index
         closed_paren = self._character(string, index, ')')
@@ -410,8 +412,8 @@ class Parser:
         index = space2.index
         condition = self._parse(string, 'expression', index)
         if condition == Parser.FAIL:
-            return Parser.FAIL  
-        index = condition.index  
+            return Parser.FAIL
+        index = condition.index
         space3 = self._parse(string, 'opt_space', index)
         index = space3.index
         closed_paren = self._character(string, index, ')')
@@ -537,7 +539,7 @@ class Parser:
     #     operator = self._choose(string, index, 'mul_operator', 'div_operator')
     #     if (operator == Parser.FAIL):
     #         return Parser.FAIL
-        
+
     #     index = operator.index
 
     #     operand = self._parse(string, 'operand', index)
@@ -569,7 +571,7 @@ class Parser:
         if (expression == Parser.FAIL):
             return Parser.FAIL
         index = expression.index
- 
+
         space = self._parse(string, 'opt_space', index)
         index = space.index
 
@@ -598,7 +600,7 @@ class Parser:
         if identifier in Parser.KEYWORDS:
             return Parser.FAIL
         return Parse('lookup', last_index, identifier)
-        
+
     def _parse_identifier_tail(self, string, index):
         id_char = self._choose(string, index, 'alpha', 'integer', 'underscore')
         if (id_char == Parser.FAIL):
@@ -656,7 +658,7 @@ class Parser:
         parsed = Parse('parameters inner', index)
         parsed.children = param_tails
         return parsed
-        
+
     def _parse_parameter_tail(self, string, index):
         comma = self._character(string, index, ',')
         if comma == Parser.FAIL:
@@ -665,7 +667,7 @@ class Parser:
 
         leading_space = self._parse(string, 'opt_space', index)
         index = leading_space.index
-        
+
         identifier = self._parse(string, 'identifier', index)
         if identifier == Parser.FAIL:
             return Parser.FAIL
@@ -708,7 +710,7 @@ class Parser:
         parsed = Parse('arguments inner', index)
         parsed.children = arg_tails
         return parsed
-        
+
     def _parse_argument_tail(self, string, index):
         comma = self._character(string, index, ',')
         if comma == Parser.FAIL:
@@ -717,7 +719,7 @@ class Parser:
 
         leading_space = self._parse(string, 'opt_space', index)
         index = leading_space.index
-        
+
         exp = self._parse(string, 'expression', index)
         if exp == Parser.FAIL:
             return Parser.FAIL
@@ -991,13 +993,13 @@ class Parser:
         if pound == Parser.FAIL:
             return Parser.FAIL
         index += 1
-        
+
         while string[index] != '\n' and index < len(string):
             if index == len(string)-1:
                 return Parser.FAIL
             index += 1
         index += 1
-        
+
         return Parse('comment', index)
 
     def _parse_alpha(self, string, index):
