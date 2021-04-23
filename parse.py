@@ -14,7 +14,8 @@ class Parse:
         return True
 
     def __str__(self):
-        if self.type == 'integer' or self.type == 'program tail':
+        labels = ['integer', 'program tail', 'argument tail', 'parameter tail', 'call tail', '']
+        if self.type in labels:
             string = ''
             for child in self.children:
                 string += str(child) + ' '

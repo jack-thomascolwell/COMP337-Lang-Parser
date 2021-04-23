@@ -1,7 +1,7 @@
 from parse import Parse
 
 class Parser:
-    FAIL = Parse('fail',-1)
+    FAIL = Parse('',-1)
     KEYWORDS = ['print', 'var', 'if', 'else', 'while', 'func', 'ret', 'class', 'int', 'bool', 'string']
 
     # FIXME add syntax error messages
@@ -9,8 +9,16 @@ class Parser:
     def __init__(self):
         self._cache = dict()
         self._string = None
+    
+    def parse(self, string, term):
+        parsed = self._parse(string, term, 0)
+        if parsed == Parser.FAIL:
+            return None
+        if parsed.index < len(string) - 1:
+            return None
+        return parsed
 
-    def parse(self, string, term, index=0):
+    def _parse(self, string, term, index):  # used to have index=0
         if (self._string != string):
             self._cache = dict()
         if ((term, index) in self._cache):
@@ -24,30 +32,30 @@ class Parser:
 
     def _zero_or_more(self, string, index, term):
         parsed = []
-        result = self.parse(string, term, index)
+        result = self._parse(string, term, index)
         while (result != Parser.FAIL):
             index = result.index
             parsed.append(result)
-            result = self.parse(string, term, index)
+            result = self._parse(string, term, index)
         return parsed
 
     def _one_or_more(self, string, index, term):
-        first = self.parse(string, term, index)
+        first = self._parse(string, term, index)
         if (first == Parser.FAIL):
             return Parser.FAIL
         index = first.index
-        rest = self._zero_or_more(string, term, index)
+        rest = self._zero_or_more(string, index, term)
         return [first, *rest]
 
     def _zero_or_one(self, string, index, term):
-        parse = self.parse(string, term, index)
+        parse = self._parse(string, term, index)
         if (parse == Parser.FAIL):
             return []
         return [parse]
 
     def _choose(self, string, index, *terms):
         for term in terms:
-            result = self.parse(string, term, index)
+            result = self._parse(string, term, index)
             if (result != Parser.FAIL):
                 return result
         return Parser.FAIL
@@ -79,42 +87,45 @@ class Parser:
         return Parse('string', index)
 
     def _parse_program(self, string, index):
-        space = self.parse(string, 'opt_space', index)
-        index = space.index
+        leading_space = self._parse(string, 'opt_space', index)
+        index = leading_space.index
         program = self._zero_or_more(string, index, 'program_tail')
         if len(program) != 0:
             index = program[len(program)-1].index
+        else:
+            return Parse('sequence', index)
+        trailing_space = self._parse(string, 'opt_space', index)
+        index = trailing_space.index
         parse = Parse('sequence', index)
         parse.children = program
         return parse
 
-
     def _parse_program_tail(self, string, index):
-        statement = self.parse(string, 'statement', index)
+        statement = self._parse(string, 'statement', index)
         if statement == Parser.FAIL:
             return Parser.FAIL
         index = statement.index
-        space = self.parse(string, 'opt_space', index)
+        space = self._parse(string, 'opt_space', index)
         index = space.index
         return Parse('program tail', index, statement)
 
     def _parse_statement(self, string, index):
-        return self._choose(string, index, 'declaration_statement', 'assignment_statement', 'print_statement', 'expression_statement', 'ifelse_statement', 'if_statement', 'while_statement')
+        return self._choose(string, index, 'declaration_statement', 'assignment_statement', 'print_statement', 'ifelse_statement', 'if_statement', 'while_statement', 'return_statement', 'expression_statement')
 
     def _parse_print_statement(self, string, index):
         p = self._string_term(string, index, 'print')
         if p == Parser.FAIL:
             return Parser.FAIL
         index = p.index
-        space = self._character(string, index, ' ')
+        space = self._parse(string, 'req_space', index)
         if space == Parser.FAIL:
             return Parser.FAIL
         index = space.index
-        expression = self.parse(string, 'expression', index)
+        expression = self._parse(string, 'expression', index)
         if expression == Parser.FAIL:
             return Parser.FAIL
         index = expression.index
-        opt_space = self.parse(string, 'opt_space', index)
+        opt_space = self._parse(string, 'opt_space', index)
         index = opt_space.index
         semicolon = self._character(string, index, ';')
         if semicolon == Parser.FAIL:
@@ -125,26 +136,47 @@ class Parser:
 
     def _parse_expression_statement(self, string, index):
         startingIndex = index
-        exp = self.parse(string, 'expression', index)
+        exp = self._parse(string, 'expression', index)
         if exp == Parser.FAIL:
             return Parser.FAIL
         index = exp.index
 
-        space = self.parse(string, 'opt_space', index)
+        space = self._parse(string, 'opt_space', index)
         index = space.index
 
         semicolon = self._character(string, index, ';')
         if semicolon == Parser.FAIL:
             return Parser.FAIL
         exp.index = semicolon.index
-        
         return exp
 
+    def _parse_return_statement(self, string, index):
+        ret = self._string_term(string, index, 'ret')
+        if ret == Parser.FAIL:
+            return Parser.FAIL
+        index = ret.index
+        space1 = self._parse(string, 'req_space', index)
+        if space1 == Parser.FAIL:
+            return Parser.FAIL
+        index = space1.index
+        exp = self._parse(string, 'expression', index)
+        if exp == Parser.FAIL:
+            return Parser.FAIL
+        index = exp.index
+        space2 = self._parse(string, 'opt_space', index)
+        index = space2.index
+        semicolon = self._character(string, index, ';')
+        if semicolon == Parser.FAIL:
+            return Parser.FAIL
+        index += 1
+        return Parse('return', index, exp)
+        
+
     def _parse_expression(self, string, index):
-        return self.parse(string, 'or_expression', index)
+        return self._parse(string, 'or_expression', index)
 
     def _parse_or_expression(self, string, index):
-        and_exp = self.parse(string, 'and_expression', index)
+        and_exp = self._parse(string, 'and_expression', index)
         if and_exp == Parser.FAIL:
             return Parser.FAIL
         index = and_exp.index
@@ -158,12 +190,12 @@ class Parser:
         return parsed
 
     def _parse_or_tail(self, string, index):
-        operator = self.parse(string, 'or_operator', index)
+        operator = self._parse(string, 'or_operator', index)
         if operator == Parser.FAIL:
             return Parser.FAIL
         index = operator.index
 
-        exp = self.parse(string, 'and_expression', index)
+        exp = self._parse(string, 'and_expression', index)
         if exp == Parser.FAIL:
             return Parser.FAIL
         index = exp.index
@@ -171,7 +203,7 @@ class Parser:
         return Parse('or tail', index, '||', exp)
 
     def _parse_and_expression(self, string, index):
-        opt_not = self.parse(string, 'opt_not_expression', index)
+        opt_not = self._parse(string, 'opt_not_expression', index)
         if opt_not == Parser.FAIL:
             return Parser.FAIL
         index = opt_not.index
@@ -186,12 +218,12 @@ class Parser:
 
 
     def _parse_and_tail(self, string, index):
-        operator = self.parse(string, 'and_operator', index)
+        operator = self._parse(string, 'and_operator', index)
         if operator == Parser.FAIL:
             return Parser.FAIL
         index = operator.index
 
-        exp = self.parse(string, 'opt_not_expression', index)
+        exp = self._parse(string, 'opt_not_expression', index)
         if exp == Parser.FAIL:
             return Parser.FAIL
         index = exp.index
@@ -209,9 +241,9 @@ class Parser:
         if exclamation == Parser.FAIL:
             return Parser.FAIL
         index += 1
-        space = self.parse(string, 'opt_space', index)
+        space = self._parse(string, 'opt_space', index)
         index = space.index
-        comp_exp = self.parse(string, 'comp_expression', index)
+        comp_exp = self._parse(string, 'comp_expression', index)
         if comp_exp == Parser.FAIL:
             return Parser.FAIL
         index = comp_exp.index
@@ -220,8 +252,7 @@ class Parser:
 
 
     def _parse_comp_expression(self, string, index):
-        # FIXME there are extra brackets around the operator even though its the same as add operator?? confused
-        add_sub = self.parse(string, 'add_expression', index)
+        add_sub = self._parse(string, 'add_expression', index)
         if add_sub == Parser.FAIL:
             return Parser.FAIL
         index = add_sub.index
@@ -239,12 +270,12 @@ class Parser:
 
     def _parse_comp_tail(self, string, index):
         # opt leading and trailing spaces included in comp_operator parse, FIXME add this to CHARACTER
-        operator = self.parse(string, 'comp_operator', index)
+        operator = self._parse(string, 'comp_operator', index)
         if operator == Parser.FAIL:
             return Parser.FAIL
         index = operator.index
 
-        exp = self.parse(string, 'add_expression', index)
+        exp = self._parse(string, 'add_expression', index)
         if exp == Parser.FAIL:
             return Parser.FAIL
         index = exp.index
@@ -257,37 +288,37 @@ class Parser:
         if _if == Parser.FAIL:
             return Parser.FAIL
         index = _if.index
-        space1 = self.parse(string, 'opt_space', index)
+        space1 = self._parse(string, 'opt_space', index)
         index = space1.index
         open_paren = self._character(string, index, '(')
         if open_paren == Parser.FAIL:
             return Parser.FAIL
         index = open_paren.index
-        space2 = self.parse(string, 'opt_space', index)
+        space2 = self._parse(string, 'opt_space', index)
         index = space2.index
-        condition = self.parse(string, 'expression', index)
+        condition = self._parse(string, 'expression', index)
         if condition == Parser.FAIL:
             return Parser.FAIL  
         index = condition.index  
-        space3 = self.parse(string, 'opt_space', index)
+        space3 = self._parse(string, 'opt_space', index)
         index = space3.index
         closed_paren = self._character(string, index, ')')
         if closed_paren == Parser.FAIL:
             return Parser.FAIL
         index = closed_paren.index
-        space4 = self.parse(string, 'opt_space', index)
+        space4 = self._parse(string, 'opt_space', index)
         index = space4.index
         open_bracket = self._character(string, index, '{')
         if open_bracket == Parser.FAIL:
             return Parser.FAIL
         index = open_bracket.index
-        space5 = self.parse(string, 'opt_space', index)
+        space5 = self._parse(string, 'opt_space', index)
         index = space5.index
-        program = self.parse(string, 'program', index)
+        program = self._parse(string, 'program', index)
         if program == Parser.FAIL:
             return Parser.FAIL
         index = program.index
-        space6 = self.parse(string, 'opt_space', index)
+        space6 = self._parse(string, 'opt_space', index)
         index = space6.index
         closed_bracket = self._character(string, index, '}')
         if closed_bracket == Parser.FAIL:
@@ -301,61 +332,61 @@ class Parser:
         if _if == Parser.FAIL:
             return Parser.FAIL
         index = _if.index
-        space1 = self.parse(string, 'opt_space', index)
+        space1 = self._parse(string, 'opt_space', index)
         index = space1.index
         open_paren = self._character(string, index, '(')
         if open_paren == Parser.FAIL:
             return Parser.FAIL
         index = open_paren.index
-        space2 = self.parse(string, 'opt_space', index)
+        space2 = self._parse(string, 'opt_space', index)
         index = space2.index
-        condition = self.parse(string, 'expression', index)
+        condition = self._parse(string, 'expression', index)
         if condition == Parser.FAIL:
             return Parser.FAIL  
         index = condition.index  
-        space3 = self.parse(string, 'opt_space', index)
+        space3 = self._parse(string, 'opt_space', index)
         index = space3.index
         closed_paren = self._character(string, index, ')')
         if closed_paren == Parser.FAIL:
             return Parser.FAIL
         index = closed_paren.index
-        space4 = self.parse(string, 'opt_space', index)
+        space4 = self._parse(string, 'opt_space', index)
         index = space4.index
         open_bracket = self._character(string, index, '{')
         if open_bracket == Parser.FAIL:
             return Parser.FAIL
         index = open_bracket.index
-        space5 = self.parse(string, 'opt_space', index)
+        space5 = self._parse(string, 'opt_space', index)
         index = space5.index
-        if_program = self.parse(string, 'program', index)
+        if_program = self._parse(string, 'program', index)
         if if_program == Parser.FAIL:
             return Parser.FAIL
         index = if_program.index
-        space6 = self.parse(string, 'opt_space', index)
+        space6 = self._parse(string, 'opt_space', index)
         index = space6.index
         closed_bracket = self._character(string, index, '}')
         if closed_bracket == Parser.FAIL:
             return Parser.FAIL
         index = closed_bracket.index
-        space7 = self.parse(string, 'opt_space', index)
+        space7 = self._parse(string, 'opt_space', index)
         index = space7.index
         _else = self._string_term(string, index, 'else')
         if _else == Parser.FAIL:
             return Parser.FAIL
         index = _else.index
-        space8 = self.parse(string, 'opt_space', index)
+        space8 = self._parse(string, 'opt_space', index)
         index = space8.index
         open_bracket = self._character(string, index, '{')
         if open_bracket == Parser.FAIL:
             return Parser.FAIL
         index = open_bracket.index
-        space9 = self.parse(string, 'opt_space', index)
+        space9 = self._parse(string, 'opt_space', index)
         index = space9.index
-        else_program = self.parse(string, 'program', index)
+        else_program = self._parse(string, 'program', index)
         if else_program == Parser.FAIL:
             return Parser.FAIL
         index = else_program.index
-        space10 = self.parse(string, 'opt_space', index)
+        space10 = self._parse(string, 'opt_space', index)
         index = space10.index
         closed_bracket = self._character(string, index, '}')
         if closed_bracket == Parser.FAIL:
@@ -369,37 +400,37 @@ class Parser:
         if _while == Parser.FAIL:
             return Parser.FAIL
         index = _while.index
-        space1 = self.parse(string, 'opt_space', index)
+        space1 = self._parse(string, 'opt_space', index)
         index = space1.index
         open_paren = self._character(string, index, '(')
         if open_paren == Parser.FAIL:
             return Parser.FAIL
         index = open_paren.index
-        space2 = self.parse(string, 'opt_space', index)
+        space2 = self._parse(string, 'opt_space', index)
         index = space2.index
-        condition = self.parse(string, 'expression', index)
+        condition = self._parse(string, 'expression', index)
         if condition == Parser.FAIL:
             return Parser.FAIL  
         index = condition.index  
-        space3 = self.parse(string, 'opt_space', index)
+        space3 = self._parse(string, 'opt_space', index)
         index = space3.index
         closed_paren = self._character(string, index, ')')
         if closed_paren == Parser.FAIL:
             return Parser.FAIL
         index = closed_paren.index
-        space4 = self.parse(string, 'opt_space', index)
+        space4 = self._parse(string, 'opt_space', index)
         index = space4.index
         open_bracket = self._character(string, index, '{')
         if open_bracket == Parser.FAIL:
             return Parser.FAIL
         index = open_bracket.index
-        space5 = self.parse(string, 'opt_space', index)
+        space5 = self._parse(string, 'opt_space', index)
         index = space5.index
-        body = self.parse(string, 'program', index)
+        body = self._parse(string, 'program', index)
         if body == Parser.FAIL:
             return Parser.FAIL
         index = body.index
-        space6 = self.parse(string, 'opt_space', index)
+        space6 = self._parse(string, 'opt_space', index)
         index = space6.index
         closed_bracket = self._character(string, index, '}')
         if closed_bracket == Parser.FAIL:
@@ -407,7 +438,6 @@ class Parser:
         index = closed_bracket.index
 
         return Parse('while', index, condition, body)
-        
 
 
     def _parse_parenthesized_expression(self, string, index):
@@ -415,23 +445,26 @@ class Parser:
         if (parenthesis == Parser.FAIL):
             return Parser.FAIL
         index += 1
-
-        add_expression = self.parse(string, 'add_expression', index)
-        if (add_expression == Parser.FAIL):
+        space1 = self._parse(string, 'opt_space', index)
+        index = space1.index
+        expression = self._parse(string, 'expression', index)
+        if (expression == Parser.FAIL):
             return Parser.FAIL
-        index = add_expression.index
+        index = expression.index
+        space1 = self._parse(string, 'opt_space', index)
+        index = space1.index
 
         parenthesis = self._character(string, index, ')')
         if (parenthesis == Parser.FAIL):
             return Parser.FAIL
         index += 1
 
-        add_expression.index = index
+        expression.index = index
 
-        return add_expression
+        return expression
 
     def _parse_add_expression(self, string, index):
-        mul_div_expression = self.parse(string, 'mul_div_expression', index)
+        mul_div_expression = self._parse(string, 'mul_div_expression', index)
         if (mul_div_expression == Parser.FAIL):
             return Parser.FAIL
         index = mul_div_expression.index
@@ -451,7 +484,7 @@ class Parser:
             return Parser.FAIL
         index = operator.index
 
-        mul_div_expression = self.parse(string, 'mul_div_expression', index)
+        mul_div_expression = self._parse(string, 'mul_div_expression', index)
         if (mul_div_expression == Parser.FAIL):
             return Parser.FAIL
         index = mul_div_expression.index
@@ -459,44 +492,69 @@ class Parser:
         return Parse('add tail', index, operator.type, mul_div_expression)
 
     def _parse_mul_div_expression(self, string, index):
-        operand = self.parse(string, 'operand', index)
-        if (operand == Parser.FAIL):
+        call = self._parse(string, 'call_expression', index)
+        if (call == Parser.FAIL):
             return Parser.FAIL
-        # if (operand.type == 'integer'):
-        #     operand = operand.children[0]
-        index = operand.index
-
+        index = call.index
+        space = self._parse(string, 'opt_space', index)
+        index = space.index
         mul_tails = self._zero_or_more(string, index, 'mul_tail')
-
-        parsed = operand
+        parsed = call
         for tail in mul_tails:
             index = tail.index
             parsed = Parse(tail.children[0], index, parsed, tail.children[1])
-
         return parsed
 
     def _parse_mul_tail(self, string, index):
         operator = self._choose(string, index, 'mul_operator', 'div_operator')
         if (operator == Parser.FAIL):
             return Parser.FAIL
-        
         index = operator.index
-
-        operand = self.parse(string, 'operand', index)
-        if (operand == Parser.FAIL):
+        space = self._parse(string, 'opt_space', index)
+        index = space.index
+        call = self._parse(string, 'call_expression', index)
+        if (call == Parser.FAIL):
             return Parser.FAIL
-        index = operand.index
+        index = call.index
+        return Parse('mul tail', index, operator.type, call)
 
-        return Parse('add tail', index, operator.type, operand)
+    # def _parse_mul_div_expression(self, string, index):
+    #     operand = self._parse(string, 'operand', index)
+    #     if (operand == Parser.FAIL):
+    #         return Parser.FAIL
+    #     index = operand.index
+
+    #     mul_tails = self._zero_or_more(string, index, 'mul_tail')
+
+    #     parsed = operand
+    #     for tail in mul_tails:
+    #         index = tail.index
+    #         parsed = Parse(tail.children[0], index, parsed, tail.children[1])
+
+    #     return parsed
+
+    # def _parse_mul_tail(self, string, index):
+    #     operator = self._choose(string, index, 'mul_operator', 'div_operator')
+    #     if (operator == Parser.FAIL):
+    #         return Parser.FAIL
+        
+    #     index = operator.index
+
+    #     operand = self._parse(string, 'operand', index)
+    #     if (operand == Parser.FAIL):
+    #         return Parser.FAIL
+    #     index = operand.index
+
+    #     return Parse('add tail', index, operator.type, operand)
 
     def _parse_assignment_statement(self, string, index):
-        location = self.parse(string, 'identifier', index)
+        location = self._parse(string, 'identifier', index)
         if (location == Parser.FAIL):
             return Parser.FAIL
         location.type = 'varloc'
         index = location.index
 
-        space = self.parse(string, 'opt_space', index)
+        space = self._parse(string, 'opt_space', index)
         index = space.index
 
         equals = self._character(string, index, '=')
@@ -504,15 +562,15 @@ class Parser:
             return Parser.FAIL
         index = equals.index
 
-        space = self.parse(string, 'opt_space', index)
+        space = self._parse(string, 'opt_space', index)
         index = space.index
 
-        expression = self.parse(string, 'add_expression', index)
+        expression = self._parse(string, 'expression', index)
         if (expression == Parser.FAIL):
             return Parser.FAIL
         index = expression.index
  
-        space = self.parse(string, 'opt_space', index)
+        space = self._parse(string, 'opt_space', index)
         index = space.index
 
         semicolon = self._character(string, index, ';')
@@ -554,65 +612,254 @@ class Parser:
             return Parser.FAIL
         index = word.index
 
-        space = self._character(string, index, ' ')
+        space = self._parse(string, 'req_space', index)
         if (space == Parser.FAIL):
             return Parser.FAIL
         index = space.index
 
-        assignment_statement = self.parse(string, 'assignment_statement', index)
+        assignment_statement = self._parse(string, 'assignment_statement', index)
         if (assignment_statement == Parser.FAIL):
             return Parser.FAIL
         index = assignment_statement.index
+        assignment_statement.children[0].type = ''
         return Parse('declare', index, assignment_statement.children[0], assignment_statement.children[1])
 
     def _parse_parameters(self, string, index):
+        leading_space = self._parse(string, 'opt_space', index)
+        index = leading_space.index
         params = self._zero_or_one(string, index, 'parameters_inner')
-        if len(params) == 0: # is this even right? check for num children being > 0 wherever this is called?
+        if len(params) == 0:
+            trailing_space = self._parse(string, 'opt_space', index)
+            index = trailing_space.index
             return Parse('parameters', index)
-        return Parse('parameters', params[0].index, params[0].children)
-
+        index = params[len(params)-1].index
+        trailing_space = self._parse(string, 'opt_space', index)
+        index = trailing_space.index
+        parsed = Parse('parameters', params[0].index)
+        parsed.children =  params[0].children
+        return parsed
 
     def _parse_parameters_inner(self, string, index):
-        identifier = self.parse(string, 'identifier', index)
+        identifier = self._parse(string, 'identifier', index)
         if identifier == Parser.FAIL:
             return Parser.FAIL
+        identifier.type = ''
         index = identifier.index
 
-        space1 = self.parse(string, 'opt_space', index)
+        space1 = self._parse(string, 'opt_space', index)
         index = space1.index
 
         param_tails = self._zero_or_more(string, index, 'parameter_tail')
         param_tails.insert(0, identifier)
-
         for tail in param_tails:
             index = tail.index
-
-        return Parse('params inner', index, param_tails)
+        parsed = Parse('parameters inner', index)
+        parsed.children = param_tails
+        return parsed
         
-
     def _parse_parameter_tail(self, string, index):
         comma = self._character(string, index, ',')
         if comma == Parser.FAIL:
             return Parser.FAIL
         index += 1
 
-        leading_space = self.parse(string, 'opt_space', index)
+        leading_space = self._parse(string, 'opt_space', index)
         index = leading_space.index
         
-        identifier = self.parse(string, 'identifier', index)
+        identifier = self._parse(string, 'identifier', index)
         if identifier == Parser.FAIL:
             return Parser.FAIL
+        identifier.type = ''
         index = identifier.index
 
-        trailing_space = self.parse(string, 'opt_space', index)
+        trailing_space = self._parse(string, 'opt_space', index)
         index = trailing_space.index
 
-        return Parse('param tail', index, identifier)
+        return Parse('parameter tail', index, identifier)
 
+    def _parse_arguments(self, string, index):
+        leading_space = self._parse(string, 'opt_space', index)
+        index = leading_space.index
+        args = self._zero_or_one(string, index, 'arguments_inner')
+        if len(args) == 0: # orr check for num children being > 0 wherever this is called?
+            trailing_space = self._parse(string, 'opt_space', index)
+            index = trailing_space.index
+            return Parse('arguments', index)
+        index = args[len(args)-1].index
+        trailing_space = self._parse(string, 'opt_space', index)
+        index = trailing_space.index
+        parsed = Parse('arguments', args[0].index)
+        parsed.children =  args[0].children
+        return parsed
 
+    def _parse_arguments_inner(self, string, index):
+        exp = self._parse(string, 'expression', index)
+        if exp == Parser.FAIL:
+            return Parser.FAIL
+        index = exp.index
+
+        space1 = self._parse(string, 'opt_space', index)
+        index = space1.index
+
+        arg_tails = self._zero_or_more(string, index, 'argument_tail')
+        arg_tails.insert(0, exp)
+        for tail in arg_tails:
+            index = tail.index
+        parsed = Parse('arguments inner', index)
+        parsed.children = arg_tails
+        return parsed
+        
+    def _parse_argument_tail(self, string, index):
+        comma = self._character(string, index, ',')
+        if comma == Parser.FAIL:
+            return Parser.FAIL
+        index += 1
+
+        leading_space = self._parse(string, 'opt_space', index)
+        index = leading_space.index
+        
+        exp = self._parse(string, 'expression', index)
+        if exp == Parser.FAIL:
+            return Parser.FAIL
+        index = exp.index
+
+        trailing_space = self._parse(string, 'opt_space', index)
+        index = trailing_space.index
+
+        return Parse('argument tail', index, exp)
+
+    def _parse_function(self, string, index):
+        func = self._string_term(string, index, 'func')
+        if func == Parser.FAIL:
+            return Parser.FAIL
+        index = func.index
+        space1 = self._parse(string, 'opt_space', index)
+        index = space1.index
+        open_paren = self._character(string, index, '(')
+        if open_paren == Parser.FAIL:
+            return Parser.FAIL
+        index += 1
+        params = self._parse(string, 'parameters', index)
+        if params == Parser.FAIL:
+            return Parser.FAIL
+        index = params.index
+        closed_paren = self._character(string, index, ')')
+        if closed_paren == Parser.FAIL:
+            return Parser.FAIL
+        index += 1
+        space2 = self._parse(string, 'opt_space', index)
+        index = space2.index
+        open_bracket = self._character(string, index, '{')
+        if open_bracket == Parser.FAIL:
+            return Parser.FAIL
+        index += 1
+        program = self._parse(string, 'program', index)
+        if program == Parser.FAIL:
+            return Parser.FAIL
+        index = program.index
+        closed_bracket = self._character(string, index, '}')
+        if closed_bracket == Parser.FAIL:
+            return Parser.FAIL
+        index += 1
+        return Parse('function', index, params, program)
+
+    def _parse_function_call(self, string, index):
+        open_paren = self._character(string, index, '(')
+        if open_paren == Parser.FAIL:
+            return Parser.FAIL
+        index += 1
+        args = self._parse(string, 'arguments', index)
+        if args == Parser.FAIL:
+            return Parser.FAIL
+        index = args.index
+        closed_paren = self._character(string, index, ')')
+        if closed_paren == Parser.FAIL:
+            return Parser.FAIL
+        index += 1
+        parsed = Parse(args.type, index)
+        parsed.children = args.children
+        return parsed
+
+    # def _parse_mul_div_expression(self, string, index):
+        # call = self._parse(string, 'call_expression', index)
+        # if (call == Parser.FAIL):
+        #     return Parser.FAIL
+        # index = call.index
+        # space = self._parse(string, 'opt_space', index)
+        # index = space.index
+        # mul_tails = self._zero_or_more(string, index, 'mul_tail')
+        # parsed = call
+        # for tail in mul_tails:
+        #     index = tail.index
+        #     parsed = Parse(tail.children[0], index, parsed, tail.children[1])
+        # return parsed
+
+    # def _parse_mul_tail(self, string, index):
+        # operator = self._choose(string, index, 'mul_operator', 'div_operator')
+        # if (operator == Parser.FAIL):
+        #     return Parser.FAIL
+        # index = operator.index
+        # space = self._parse(string, 'opt_space', index)
+        # index = space.index
+        # call = self._parse(string, 'call_expression', index)
+        # if (call == Parser.FAIL):
+        #     return Parser.FAIL
+        # index = call.index
+        # return Parse('mul tail', index, operator.type, call)
+
+    def _parse_call_expression(self, string, index): #FIXME repeated lookup things in parsed arguments
+        operand = self._parse(string, 'operand', index)
+        if (operand == Parser.FAIL):
+            return Parser.FAIL
+        index = operand.index
+        space = self._parse(string, 'opt_space', index)
+        index = space.index
+        call_tails = self._zero_or_more(string, index, 'call_tail')
+        parsed = operand
+        if len(call_tails) == 0:
+            return Parse('', index, operand)
+        for tail in call_tails:
+            index = tail.index
+            parsed = Parse('call', index, parsed, tail.children[0])
+        return parsed
+
+    def _parse_call_tail(self, string, index):
+        call = self._parse(string, 'function_call', index)
+        if call == Parser.FAIL:
+            return Parser.FAIL
+        index = call.index
+        return Parse('call tail', index, call)
+
+    # def _parse_call_expression(self, string, index): #FIXME broken for multiple calls in a row
+    #     parse = Parse('', index)
+    #     operand = self._parse(string, 'operand', index)
+    #     if operand == Parser.FAIL:
+    #         return Parser.FAIL
+    #     index = operand.index
+    #     call_tail = self._zero_or_more(string, index, 'call_tail')
+    #     if len(call_tail) != 0:
+    #         index = call_tail[len(call_tail)-1].index
+    #         parse.type = 'call'
+    #     trailing_space = self._parse(string, 'opt_space', index)
+    #     index = trailing_space.index
+    #     parse.index = index
+    #     #parse.type = operand.type
+    #     call_tail.insert(0, operand)
+    #     parse.children = call_tail
+
+    #     return parse
+
+    # def _parse_call_tail(self, string, index):
+    #     space = self._parse(string, 'opt_space', index)
+    #     index = space.index
+    #     call = self._parse(string, 'function_call', index)
+    #     if call == Parser.FAIL:
+    #         return Parser.FAIL
+    #     index = call.index
+    #     return Parse('call tail', index, call)
 
     def _parse_operand(self, string, index):
-        return self._choose(string, index, 'parenthesized_expression', 'integer', 'identifier')
+        return self._choose(string, index, 'parenthesized_expression', 'function', 'identifier', 'integer')
 
     def _parse_integer(self, string, index):
         parsed = ''
@@ -624,7 +871,7 @@ class Parser:
         return Parse('integer', index, int(parsed))
 
     def _parse_sub_operator(self, string, index):
-        leading_space = self.parse(string, 'opt_space', index)
+        leading_space = self._parse(string, 'opt_space', index)
         index = leading_space.index
 
         operator = self._character(string, index, '-')
@@ -632,12 +879,12 @@ class Parser:
             return Parser.FAIL
         index += 1
 
-        trailing_space = self.parse(string, 'opt_space', index)
+        trailing_space = self._parse(string, 'opt_space', index)
         index = trailing_space.index
         return Parse('-',index)
 
     def _parse_add_operator(self, string, index):
-        leading_space = self.parse(string, 'opt_space', index)
+        leading_space = self._parse(string, 'opt_space', index)
         index = leading_space.index
 
         operator = self._character(string, index, '+')
@@ -645,12 +892,12 @@ class Parser:
             return Parser.FAIL
         index += 1
 
-        trailing_space = self.parse(string, 'opt_space', index)
+        trailing_space = self._parse(string, 'opt_space', index)
         index = trailing_space.index
         return Parse('+',index)
 
     def _parse_mul_operator(self, string, index):
-        leading_space = self.parse(string, 'opt_space', index)
+        leading_space = self._parse(string, 'opt_space', index)
         index = leading_space.index
 
         operator = self._character(string, index, '*')
@@ -658,12 +905,12 @@ class Parser:
             return Parser.FAIL
         index += 1
 
-        trailing_space = self.parse(string, 'opt_space', index)
+        trailing_space = self._parse(string, 'opt_space', index)
         index = trailing_space.index
         return Parse('*',index)
 
     def _parse_div_operator(self, string, index):
-        leading_space = self.parse(string, 'opt_space', index)
+        leading_space = self._parse(string, 'opt_space', index)
         index = leading_space.index
 
         operator = self._character(string, index, '/')
@@ -671,12 +918,12 @@ class Parser:
             return Parser.FAIL
         index += 1
 
-        trailing_space = self.parse(string, 'opt_space', index)
+        trailing_space = self._parse(string, 'opt_space', index)
         index = trailing_space.index
         return Parse('/',index)
 
     def _parse_comp_operator(self, string, index):
-        leading_space = self.parse(string, 'opt_space', index)
+        leading_space = self._parse(string, 'opt_space', index)
         index = leading_space.index
 
         operator = self._choose_chars(string, index, '==', '!=', '<=', '>=', '<', '>')
@@ -684,12 +931,12 @@ class Parser:
             return Parser.FAIL
         index = operator.index
 
-        trailing_space = self.parse(string, 'opt_space', index)
+        trailing_space = self._parse(string, 'opt_space', index)
         index = trailing_space.index
         return Parse(operator.type, index)
 
     def _parse_and_operator(self, string, index):
-        leading_space = self.parse(string, 'opt_space', index)
+        leading_space = self._parse(string, 'opt_space', index)
         index = leading_space.index
 
         operator = self._string_term(string, index, '&&')
@@ -697,12 +944,12 @@ class Parser:
             return Parser.FAIL
         index += 2
 
-        trailing_space = self.parse(string, 'opt_space', index)
+        trailing_space = self._parse(string, 'opt_space', index)
         index = trailing_space.index
         return Parse('&&', index)
 
     def _parse_or_operator(self, string, index):
-        leading_space = self.parse(string, 'opt_space', index)
+        leading_space = self._parse(string, 'opt_space', index)
         index = leading_space.index
 
         operator = self._string_term(string, index, '||')
@@ -710,7 +957,7 @@ class Parser:
             return Parser.FAIL
         index += 2
 
-        trailing_space = self.parse(string, 'opt_space', index)
+        trailing_space = self._parse(string, 'opt_space', index)
         index = trailing_space.index
         return Parse('||', index)
 
@@ -720,29 +967,34 @@ class Parser:
             index = space[len(space) - 1].index
         return Parse('whitespace', index)
 
-    # FIXME need to add newlines and comments to whitespace
-    def _parse_whitespace(self, string, index):
-        # space = self._choose_chars(string, index, ' ', '\n')
-        # if space == Parser.FAIL:
-        #     comment = self.parse(string, 'comment', index)
-        #     if (comment == Parser.FAIL):
-        #         return Parser.FAIL
-        # else:
-        #     index += 1
-        # return Parse('whitespace',index)
-
-        space = self._choose_chars(string, index, ' ', '\n')
+    def _parse_req_space(self, string, index):
+        space = self._one_or_more(string, index, 'whitespace')
         if space == Parser.FAIL:
             return Parser.FAIL
-        index += 1
+        index = space[len(space) - 1].index
         return Parse('whitespace', index)
+
+    def _parse_whitespace(self, string, index): #FIXME what is a 'BLANK'??
+        space = self._choose_chars(string, index, ' ', '\n', '\t')
+        if space == Parser.FAIL:
+            comment = self._parse(string, 'comment', index)
+            if (comment == Parser.FAIL):
+                return Parser.FAIL
+            else:
+                index = comment.index
+        else:
+            index += 1
+        return Parse('whitespace',index)
 
     def _parse_comment(self, string, index):
         pound = self._character(string, index, '#')
         if pound == Parser.FAIL:
             return Parser.FAIL
         index += 1
+        
         while string[index] != '\n' and index < len(string):
+            if index == len(string)-1:
+                return Parser.FAIL
             index += 1
         index += 1
         
@@ -765,7 +1017,7 @@ class Parser:
 
 
 def test_parse(parser, string, term, expected):
-    actual = parser.parse(string, term)
+    actual = parser._parse(string, term)
     assert actual is not None, 'Got None when parsing "{}"'.format(string)
     assert actual == expected, 'Parsing "{}"; expected {} but got {}'.format(
         string, expected, actual
@@ -880,9 +1132,42 @@ def main():
     parser = Parser()
     # print(parser._parse_while_statement('while(i<10){i=i+1;}', 0))
     # print(parser._parse_comp_expression('1>2', 0))
-    #print(parser._parse_program('if(1){1+1;}else{1-1;}', 0))
-    #print(parser._parse_parameters('1 2 3 4', 0)) # FIXME this is hecked
-    #test()
-    print("FIXME tests won't work to check S-Expressions")
+    # print(parser._parse_program('if(1){1+1;}else{1-1;}', 0))
+    # print(parser._parse_parameters('a1, b2, a3, weee4', 0))
+    # print(parser._parse_program('var num = func(n)#this is a function\n{if(1){ret 1;}else{1-1;}};', 0))
+    # print(parser._parse_program('''
+    # var add1 = func(n){
+    #     ret n + 1;
+    # };
+    # var add2 = func(n){
+    #     ret n + 1;
+    # };
+    # if (add1 == add2){
+    #     print 1;
+    # }
+    # else {
+    #     print 0;
+    # }
+    # ''', 0))
+    # print(parser._parse_arguments('x+1, 3, b', 0))
+    #print(parser._parse_call_expression('x(w, w)(2)', 0))
+    # print(parser._parse_mul_div_expression('1*2', 0))
+    # print(parser._parse_comment('# ree\n', 0))
+    # print(parser._parse_call_expression('grr(n, 3);', 0))
+    # print(parser._parse_program('''if (1 && 2 && 3){
+    # print 3;
+    # }
+    # else {
+    #     print 0;
+    # }
+    # ''', 0))
+    # print(parser._parse_program('1&&2&&3;', 0))
+    #print(parser._parse_program('1<2<3;', 0))
+    #print(parser._parse_program('1&&2&&3;', 0))
+    #print(parser._parse_declaration_statement('var t = 1&&2&&3;', 0))
+    # test()
+    # print("FIXME tests won't work to check S-Expressions")
+    #print(parser.parse('var t = func(n, p){};', 'program'))
+    # print(parser.parse('((10 > 2) == 1)', 'parenthesized_expression'))
 if __name__ == '__main__':
     main()
