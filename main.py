@@ -5,6 +5,7 @@ from pathlib import Path
 from parser import Parser # FIXME change this line to use your code if necessary
 from interpreter import Interpreter # FIXME change this line to use your code if necessary
 from sexp import sexp as sexp_to_parse, validate_parse
+from transforms import ConstantFoldingTransform
 
 def normalize_sexp(string):
 
@@ -82,12 +83,29 @@ def test_sexp(sexp_path, parse, message):
     error.append(actual_sexp)
     assert actual_sexp == expected_sexp, '\n' + '\n'.join(error)
 
+def test_transform(sexp2_path, parse, message):
+    if not sexp2_path.exists():
+        return
+    with sexp2_path.open() as fd:
+        expected_sexp2 = normalize_sexp(fd.read())
+    # process the expected and actual output to deal with whtiespace
+    actual_sexp2 = normalize_sexp(str(parse))
+    error = [message,]
+    error.append('EXPECTED S-EXPRESSION2 (multiple whitespaces are ignored)')
+    error.append(expected_sexp2)
+    error.append('ACTUAL S-EXPRESSION2 (multiple whitespaces are ignored)')
+    error.append(actual_sexp2)
+    assert actual_sexp2 == expected_sexp2, '\n' + '\n'.join(error)
 
-def test_with_file(lang_path, interpreter_only, parser_only):
+
+def test_with_file(lang_path, interpreter_only, parser_only, transform):
     """Test using the lang program at the file path.
 
     Parameters:
         lang_path (Path): The path of the input program.
+        interpreter_only (Boolean): Test only the interpreter
+        parser_only (Boolean): Test only the parser
+        transform (Boolean): Include code transforms
 
     Raises:
         AssertError: If the test does not pass.
@@ -102,6 +120,8 @@ def test_with_file(lang_path, interpreter_only, parser_only):
     if (not (interpreter_only or parser_only)):
         parser = Parser()
         parse = parser.parse(program, 'program')
+        print("parse: %s"%parse)
+        assert validate_parse(parse), 'Invalid sexp parse: %s'%parse
         if parse is None:
             # if there's a syntax error, that's our only output
             actual_output = 'syntax error'
@@ -109,8 +129,15 @@ def test_with_file(lang_path, interpreter_only, parser_only):
             # otherwise, check against the intermediate representation
             sexp_path = lang_path.parent.joinpath(lang_path.stem + '.sexp')
             test_sexp(sexp_path, parse, 'intermediate representation does not match')
+            if (transform):
+                sexp2_path = lang_path.parent.joinpath(lang_path.stem + '.sexp2')
+                transformer = ConstantFoldingTransform()
+                transformed_parse = transformer.visit(parse)
+                test_transform(sexp2_path, transformed_parse, 'transformed intermediate representation does not match')
             # run the program to get the output
-            actual_output = Interpreter().execute(parse)
+            results = Interpreter(True).execute(parse)
+            #print(results[1])
+            actual_output = results[0]
         # read the expected output
         out_path = lang_path.parent.joinpath(lang_path.stem + '.out')
         with out_path.open() as fd:
@@ -188,14 +215,14 @@ def test_with_file(lang_path, interpreter_only, parser_only):
             sexp_path = lang_path.parent.joinpath(lang_path.stem + '.sexp')
             test_sexp(sexp_path, parse, 'intermediate representation does not match')
 
-def test_with_directory(dir_path, interpreter_only, parser_only):
+def test_with_directory(dir_path, interpreter_only, parser_only, transform):
     """Test using the lang programs in the directory.
 
     Arguments:
         dir_path (Path): A directory containing input programs.
     """
     for lang_path in sorted(dir_path.glob('**/*.lang'), key=(lambda path: str(path).lower())):
-        test_with_file(lang_path, interpreter_only, parser_only)
+        test_with_file(lang_path, interpreter_only, parser_only, transform)
 
 
 def main():
@@ -205,6 +232,7 @@ def main():
     n = 1
     interpreter_only = False
     parser_only = False
+    transform = False
 
     if (len(sys.argv) > 1 and sys.argv[1] == '-i'):
         n+=1
@@ -212,13 +240,16 @@ def main():
     if (len(sys.argv) > 1 and sys.argv[1] == '-p'):
         n+=1
         parser_only = True
+    if (len(sys.argv) > 1 and sys.argv[1] == '-t'):
+        n+=1
+        transform = True
 
     for arg in sys.argv[n:]:
         path = Path(arg).expanduser().resolve()
         if path.is_dir():
-            test_with_directory(path, interpreter_only, parser_only)
+            test_with_directory(path, interpreter_only, parser_only, transform)
         else:
-            test_with_file(path, interpreter_only, parser_only)
+            test_with_file(path, interpreter_only, parser_only, transform)
 
     print()
     if (interpreter_only):

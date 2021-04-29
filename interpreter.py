@@ -4,6 +4,7 @@ from parse import Parse
 from pointer import Pointer
 from closure import Closure
 from sexp import sexp
+from parser import Parser
 
 class Interpreter:
     def __init__(self, debug=False):
@@ -43,6 +44,7 @@ class Interpreter:
 
     def _exec(self, parse):
         self._debug("exec %s with environment=%s"%(parse, self.__environment))
+        self._debug("type: %s"%(type(parse)))
         if (self.__is_primitive(parse)):
             return parse
 
@@ -50,6 +52,8 @@ class Interpreter:
         executor = getattr(self, '_exec_%s'%(renamed_types.get(parse.type, parse.type)), None)
         self.__tab += 1
         result = None
+        self._debug(executor)
+        self._debug('_exec_%s'%(renamed_types.get(parse.type, parse.type)))
         if (not callable(executor)):
             result = self._eval(parse)
         else:
@@ -355,10 +359,19 @@ def main():
     #control = Parse("sequence", 0, Parse("declare", 0, 'a', 5), Parse("while", 0, Parse('lookup', 0, 'a'), Parse('sequence', 0, Parse("assign", 0, Parse("varloc", 0, 'a'), Parse("-", 0, Parse("lookup", 0, 'a'), 1)), Parse('print', 0, Parse('lookup', 0, 'a')))))
     #function = Parse("sequence", 0, Parse("declare", 0, 'a', Parse("function", 0, Parse("parameters", 0, 'a'), Parse('sequence', 0, Parse('print', 0, Parse('lookup', 0, 'a'))))), Parse("call", 0, Parse("lookup", 0 ,'a'), Parse("arguments", 0, 12)))
 
-    program = sexp('(sequence (declare func foo (function (signature int var) (parameters x) (sequence (declare func bar (function (parameters) (sequence))) (if (== (lookup x) 1) (sequence (return 1))) (return (lookup bar))))) (declare int x (call (lookup foo) (arguments 1))) (declare func y (call (lookup foo) (arguments 3))) (print (lookup x)) (print (lookup y)))')
+    program = sexp('(sequence (print (+ (- (- 1 2) 3) (/ (/ 10 5) 2))))')
+    program2 = Parser().parse('print 1-2-3 + 10/5/2;','program')
 
     interpreter = Interpreter(True)
     out, debug = interpreter.execute(program)
+    print("-/ DEBUG /------------------------")
+    print(debug)
+    print("-/ OUT /--------------------------")
+    print(out)
+    print("----------------------------------")
+
+    interpreter = Interpreter(True)
+    out, debug = interpreter.execute(program2)
     print("-/ DEBUG /------------------------")
     print(debug)
     print("-/ OUT /--------------------------")
