@@ -52,8 +52,6 @@ class Interpreter:
         executor = getattr(self, '_exec_%s'%(renamed_types.get(parse.type, parse.type)), None)
         self.__tab += 1
         result = None
-        self._debug(executor)
-        self._debug('_exec_%s'%(renamed_types.get(parse.type, parse.type)))
         if (not callable(executor)):
             result = self._eval(parse)
         else:
@@ -363,8 +361,7 @@ def main():
     #control = Parse("sequence", 0, Parse("declare", 0, 'a', 5), Parse("while", 0, Parse('lookup', 0, 'a'), Parse('sequence', 0, Parse("assign", 0, Parse("varloc", 0, 'a'), Parse("-", 0, Parse("lookup", 0, 'a'), 1)), Parse('print', 0, Parse('lookup', 0, 'a')))))
     #function = Parse("sequence", 0, Parse("declare", 0, 'a', Parse("function", 0, Parse("parameters", 0, 'a'), Parse('sequence', 0, Parse('print', 0, Parse('lookup', 0, 'a'))))), Parse("call", 0, Parse("lookup", 0 ,'a'), Parse("arguments", 0, 12)))
 
-    program = sexp('(sequence (print (+ (- (- 1 2) 3) (/ (/ 10 5) 2))))')
-    program2 = Parser().parse('print 1-2-3 + 10/5/2;','program')
+    program = sexp('(sequence (declare int a 5) (assign (varloc a) 6) (print (lookup a)) (assign (varloc a) (function (parameters) (sequence))))')
 
     interpreter = Interpreter(True)
     out, debug = interpreter.execute(program)
@@ -373,15 +370,6 @@ def main():
     print("-/ OUT /--------------------------")
     print(out)
     print("----------------------------------")
-
-    interpreter = Interpreter(True)
-    out, debug = interpreter.execute(program2)
-    print("-/ DEBUG /------------------------")
-    print(debug)
-    print("-/ OUT /--------------------------")
-    print(out)
-    print("----------------------------------")
-
 
 if __name__ == '__main__':
     main()

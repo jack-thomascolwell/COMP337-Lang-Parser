@@ -7,7 +7,7 @@ class Pointer:
         return self.__environment.get(self.__var)
 
     def set(self, val):
-        self.__environment.set(self.__var, val)
+        self.__environment.set(self.__var, val, self.type())
 
     def type(self):
         return self.__environment.get_type(self.__var)

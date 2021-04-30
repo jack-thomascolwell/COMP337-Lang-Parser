@@ -13,7 +13,7 @@ class Environment:
     def contains(self, var):
         return var in self.__variables
 
-    def set(self, var, value, varType='var'):
+    def set(self, var, value, varType):
         self.__variables[var] = [value,varType]
 
     def get(self, var):
