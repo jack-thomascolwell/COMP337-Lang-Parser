@@ -159,16 +159,20 @@ class Interpreter:
     def _eval_and(self, parse):
         (operandA, operandB) = parse.children
         resultA = self._eval(operandA)
+        if (not self.__is_truthy(resultA)):
+            return 0
         resultB = self._eval(operandB)
-        if (self.__is_truthy(resultA) and self.__is_truthy(resultB)):
-            return 1
-        return 0
+        if (not self.__is_truthy(resultB)):
+            return 0
+        return 1
 
     def _eval_or(self, parse):
         (operandA, operandB) = parse.children
         resultA = self._eval(operandA)
+        if (self.__is_truthy(resultA)):
+            return 1
         resultB = self._eval(operandB)
-        if (self.__is_truthy(resultA) or self.__is_truthy(resultB)):
+        if (self.__is_truthy(resultB)):
             return 1
         return 0
 
