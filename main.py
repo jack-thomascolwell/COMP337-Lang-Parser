@@ -132,8 +132,8 @@ def test_with_file(lang_path, interpreter_only, parser_only, transform):
             if (transform):
                 sexp2_path = lang_path.parent.joinpath(lang_path.stem + '.sexp2')
                 transformer = ConstantFoldingTransform()
-                transformed_parse = transformer.visit(parse)
-                test_transform(sexp2_path, transformed_parse, 'transformed intermediate representation does not match')
+                parse = transformer.visit(parse)
+                test_transform(sexp2_path, parse, 'transformed intermediate representation does not match')
             # run the program to get the output
             results = Interpreter(True).execute(parse)
             #print(results[1])
