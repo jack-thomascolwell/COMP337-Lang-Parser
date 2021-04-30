@@ -257,7 +257,10 @@ def main():
     elif (parser_only):
         print("parser passed all test cases")
     else:
-        print("interpreter and parser passed all test cases")
+        if (transform):
+            print("interpreter, parser, and transforms passed all test cases")
+        else:
+            print("interpreter and parser passed all test cases")
 
 if __name__ == '__main__':
     main()
