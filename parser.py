@@ -20,7 +20,7 @@ class Parser:
         parsed = sexp(str(parsed))
         return parsed
 
-    def _parse(self, string, term, index):  # used to have index=0
+    def _parse(self, string, term, index):
         if (self._string != string):
             self._cache = dict()
         if ((term, index) in self._cache):
@@ -62,7 +62,7 @@ class Parser:
                 return result
         return Parser.FAIL
 
-    def _choose_chars(self, string, index, *terms): # FIXME? change this name maybe (choose but for multiple charaters in each string)
+    def _choose_chars(self, string, index, *terms):
         for term in terms:
             result = self._string_term(string, index, term)
             if (result != Parser.FAIL):
@@ -77,7 +77,7 @@ class Parser:
             return Parser.FAIL
         return Parse('character',index + 1)
 
-    def _string_term(self, string, index, word): # FIXME please change this name (takes in a string word such as "var")
+    def _string_term(self, string, index, word):
         if (index >= len(string)):
             return Parser.FAIL
         i = index
@@ -271,7 +271,6 @@ class Parser:
 
 
     def _parse_comp_tail(self, string, index):
-        # opt leading and trailing spaces included in comp_operator parse, FIXME add this to CHARACTER
         operator = self._parse(string, 'comp_operator', index)
         if operator == Parser.FAIL:
             return Parser.FAIL
@@ -581,7 +580,6 @@ class Parser:
 
     def _parse_declaration_statement(self, string, index):
         word = self._parse(string, 'type', index)
-        # word = self._string_term(string, index, 'var')
         if (word == Parser.FAIL):
             return Parser.FAIL
         if word.type == 'var':
@@ -619,8 +617,6 @@ class Parser:
         identifier = self._parse(string, 'parameter', index)
         if identifier == Parser.FAIL:
             return Parser.FAIL
-        # if identifier.type == '':
-        #     identifier.type = 'var'
         index = identifier.index
 
         space1 = self._parse(string, 'opt_space', index)
@@ -628,7 +624,6 @@ class Parser:
 
         param_tails = self._zero_or_more(string, index, 'parameter_tail')
         param_tails.insert(0, identifier)
-        #print("param tails[0].type: " + param_tails[0].type)
         for tail in param_tails:
             index = tail.index
         parsed = Parse('parameters inner', index)
@@ -648,10 +643,6 @@ class Parser:
         identifier = self._parse(string, 'parameter', index)
         if identifier == Parser.FAIL:
             return Parser.FAIL
-        # if identifier.type == '':
-        #     identifier.type = 'var'
-
-        #identifier.type = ''    #FIXME this may be an issue
         index = identifier.index
 
         trailing_space = self._parse(string, 'opt_space', index)
@@ -669,8 +660,7 @@ class Parser:
         identifier.type = ''
         if len(p_type)==0:
             return Parse(identifier.type, index, identifier)
-        #print(p_type[0].type) # this gives param type
-        return Parse(p_type[0].type, index, identifier) #p_type[0]
+        return Parse(p_type[0].type, index, identifier)
     
     def _parse_param_type(self, string, index):
         p_type = self._parse(string, 'type', index)
@@ -755,7 +745,7 @@ class Parser:
 
         return Parse('argument tail', index, exp)
 
-    def _parse_function(self, string, index):  # make sure that if any part is typed, the whole thing is typed?
+    def _parse_function(self, string, index):
         func = self._string_term(string, index, 'func')
         if func == Parser.FAIL:
             return Parser.FAIL
@@ -1015,72 +1005,5 @@ class Parser:
 
 def main():
     parser = Parser()
-    # print(parser._parse_while_statement('while(i<10){i=i+1;}', 0))
-    # print(parser._parse_comp_expression('1>2', 0))
-    # print(parser._parse_program('if(1){1+1;}else{1-1;}', 0))
-    # print(parser._parse_parameters('a1, b2, a3, weee4', 0))
-    # print(parser._parse_program('var num = func(n)#this is a function\n{if(1){ret 1;}else{1-1;}};', 0))
-    # print(parser._parse_program('''
-    # var add1 = func(n){
-    #     ret n + 1;
-    # };
-    # var add2 = func(n){
-    #     ret n + 1;
-    # };
-    # if (add1 == add2){
-    #     print 1;
-    # }
-    # else {
-    #     print 0;
-    # }
-    # ''', 0))
-    #print(parser.parse('ret _range(end - 1, pair(end - 1, partial));', 'program'))
-    #print(parser._parse_call_expression('x(w, w)(2)', 0))
-    # print(parser._parse_mul_div_expression('1*2', 0))
-    # print(parser._parse_comment('# ree\n', 0))
-    # print(parser._parse_call_expression('grr(n, 3);', 0))
-    # print(parser._parse_program('''if (1 && 2 && 3){
-    # print 3;
-    # }
-    # else {
-    #     print 0;
-    # }
-    # ''', 0))
-    # print(parser._parse_program('1&&2&&3;', 0))
-    #print(parser._parse_program('1<2<3;', 0))
-    #print(parser._parse_program('1&&2&&3;', 0))
-    #print(parser._parse_declaration_statement('var t = 1&&2&&3;', 0))
-    # test()
-    # print("FIXME tests won't work to check S-Expressions")
-    #print(parser.parse('var t = func(n, p){};', 'program'))
-    # print(parser.parse('((10 > 2) == 1)', 'parenthesized_expression'))
-    #print(parser.parse('print 1-2-3 + 10/5/2;', 'program'))
-    # print(parser.parse('''
-    # # this tests comments being counted as optioinal spaces, which include a new line at the end of each,
-    # # so even though the declaration statement is split across lines, (i think) it should still be valid.
-    # var counter# this is an optional space
-    # =# this is also an optional space
-    # 0# here is one more optional space
-    # ;
-    # print counter;
-    # ''', 'program'))
-
-    print(parser.parse('''
-    func a = func(u, func t)->int{};
-    var a = 4;
-    ''', 'program'))
-
-    # print(parser.parse('''
-    # func a = func(x, int y)->var{
-    #     if(!x){
-    #             ret y;
-    #     }
-    #     else{
-    #             ret x;
-    #     }
-    # };
-    # a = a(a, 1);
-    # print a(0, 3);
-    # ''', 'program'))
 if __name__ == '__main__':
     main()
