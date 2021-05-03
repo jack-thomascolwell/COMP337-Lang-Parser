@@ -168,7 +168,7 @@ def main():
     # 1 - 12 + 2i + 32 + i - 3 - 43 + 12i
     # 2i + i + 12i - 25
     # (print (- 1 (- (+ (- (- (- 12 (* (lookup i) 2)) 32) (- (lookup i) 3)) 43) (* 12 (lookup i)))))
-    result = transform.visit(sexp('(sequence (declare empty (function (parameters) (sequence))) (print (- (+ 3 (lookup empty)) 3)))'))
+    result = transform.visit(sexp('(sequence (+ (- (lookup i) 2) 3))'))
     print(result)
 if __name__ == '__main__':
     main()

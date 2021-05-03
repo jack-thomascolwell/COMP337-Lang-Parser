@@ -52,19 +52,19 @@ def sexp(string, t=0):
         return None
     string = normalize_sexp(string)
     #print(f'{t*"  "}Parsing {string}')
-    if (string.isnumeric()):
+    if (string.isnumeric()): #Primitive
         #print(f'{t*"  "}got numeric')
         return int(string)
-    if (not ((')' in string) or ('(' in string))):
+    if (not ((')' in string) or ('(' in string))): #Term
         #print(f'{t*"  "}got string')
         return string
-    if (re.match('^[(](\S+)[)]$', string) != None):
+    if (re.match('^[(](\S+)[)]$', string) != None): #Look for things of the form (arguments)
         return Parse(string[1:-1],0)
-    match = re.search("^[(](\S+)[\s]+(.*)[)]$", string)
+    match = re.search("^[(](\S+)[\s]+(.*)[)]$", string) #Matches things of the form (arguments a b c)
     if (match == None):
         return None
     title = match.group(1)
-    rest = split_terms(match.group(2)).split('\n')
+    rest = split_terms(match.group(2)).split('\n') # Uses a separator that wont show up in any terms
     #print('%sTitle: %s, terms: %s'%(t*'  ',title, rest))
     rest_parsed = [ sexp(term, t+1) for term in rest ]
     #print('%sParsed Terms: %s isa %s'%(t*'  ',[str(p) for p in rest_parsed],[type(p) for p in rest_parsed]))
@@ -73,7 +73,7 @@ def sexp(string, t=0):
             return None
     return Parse(title, 0, *rest_parsed)
 
-def split_terms(string):
+def split_terms(string): # Split terms where \n separates terms
     string = list(string)
     pCount = 0
     i = 0
